@@ -6,7 +6,7 @@ CSVはブラウザの中だけで処理し、外部には送信しません。
 ## GitHub Pages への公開
 
 1. GitHub で新しいリポジトリ `pareto-kun` を作成する
-2. このフォルダの中身（index.html、chart.umd.min.js、manifest.webmanifest、sw.js、icons フォルダ）をアップロードする
+2. このフォルダの中のファイル（index.html、chart.umd.min.js、manifest.webmanifest、sw.js、icon.svg、icon-192.png、icon-512.png、maskable-512.png）を、すべてリポジトリの一番上（直下）にアップロードする
 3. リポジトリの Settings → Pages で、Branch を `main`、フォルダを `/ (root)` にして保存する
 4. 数分後、`https://ユーザー名.github.io/pareto-kun/` で開けるようになる
 5. Chrome または Edge で開き、アドレスバー右側のインストールボタンからアプリとしてインストールする

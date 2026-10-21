@@ -1,20 +1,21 @@
 // パレート君 Service Worker
 // 画面（index.html）はネット優先で最新版を取得し、オフライン時は保存済みの版を使います。
 // ツールを更新したら VERSION の数字を上げてください。
-const VERSION = 'pareto-kun-v3';
+const VERSION = 'pareto-kun-v4';
 const ASSETS = [
   './',
   'index.html',
   'chart.umd.min.js',
   'manifest.webmanifest',
-  'icons/icon.svg',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
-  'icons/maskable-512.png'
+  'icon.svg',
+  'icon-192.png',
+  'icon-512.png',
+  'maskable-512.png'
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // 1つ取得できなくても他は保存できるよう、1ファイルずつ保存します
+  e.waitUntil(caches.open(VERSION).then(c => Promise.all(ASSETS.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
