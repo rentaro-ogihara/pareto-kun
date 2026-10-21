@@ -288,13 +288,14 @@ table{border-collapse:collapse;width:100%}
       </div>
       <div class="card mt" id="shopCard">
         <h2><span class="ic">🛒</span>店舗 → 荷主の対応と、卸／個人の区分</h2>
-        <p class="hint">CSVの「受注店舗名」で荷主を振り分けます。新しい店舗が出てきたら、ここで荷主名と区分を入れてください。<br>
+        <p class="hint">CSVの「受注店舗名」で荷主を振り分けます（八寸町のCSVのように受注店舗名の列が無い場合は「荷送人名1」を使います）。新しい店舗が出てきたら、ここで荷主名と区分を入れてください。<br>
           区分：<span class="tag t-b2b">卸</span> すべて卸先として分析　<span class="tag t-ec">個人向け</span> 「個人（店舗名）」にまとめる　<span class="tag t-mixed">混在</span> 下の表で選んだ宛先だけを卸にする</p>
         <div id="shopTable" class="tblwrap" style="max-height:480px"></div>
       </div>
       <div class="card mt" id="mixedCard">
         <h2><span class="ic">🔀</span>混在店舗の卸先の指定</h2>
-        <p class="hint">区分が「混在」の店舗について、卸として扱う宛先にチェックを入れてください。チェックしていない宛先は個人向けとして集計します。</p>
+        <p class="hint">区分が「混在」の店舗は、次のどちらかに当てはまる宛先を<b>自動で卸</b>と判定します。①宛先名に「株式会社・LC・DC・物流センター・Amazon・楽天・ジム・FITNESS・クラブ・○○部・大学・病院・店」などが入っている　②1伝票の個数が下の数以上。判定が違う宛先は、右の欄で「卸」「個人」に固定できます。</p>
+        <div class="ctl">1伝票あたり <input type="number" id="mixedMin" min="1" style="width:80px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px"> 個以上なら卸</div>
         <div id="mixedTable" class="tblwrap" style="max-height:420px"></div>
       </div>
       <div class="card mt">
@@ -337,7 +338,7 @@ const LS='paretoKun_settings_v1';
 const UNASSIGNED='（未割当）';
 
 /* ---------- LOGILESS 出荷実績CSV（OutboundDeliveryLine）の列 ---------- */
-const COLS={slip:'伝票コード',done:'完了日時',shop:'受注店舗名',n1:'お届け先名1',a2:'お届け先 住所2',a3:'お届け先 住所3',code:'商品コード',pname:'商品名',qty:'数量'};
+const COLS={slip:['伝票コード'],done:['完了日時'],shop:['受注店舗名','荷送人名1'],n1:['お届け先名1'],n2:['お届け先名2'],a2:['お届け先 住所2'],a3:['お届け先 住所3'],code:['商品コード'],pname:['商品名'],qty:['数量']};
 const REQ=['slip','done','shop','n1','code','qty'];
 
 /* ---------- 初期設定（店舗→荷主・区分） ---------- */
@@ -355,7 +356,10 @@ const DEFAULT_SHOPS={
   '【カラーミー】しーぷらショップ':{owner:'シーズナルプランツ',type:'ec'},
   '【卸し用】シーズナルプランツ':{owner:'シーズナルプランツ',type:'b2b'},
   'SAURUS JAPAN株式会社':{owner:'SAURUS JAPAN',type:'b2b'},
-  'NINZIA(Amazon)':{owner:'NINZIA',type:'ec'}
+  'NINZIA(Amazon)':{owner:'NINZIA',type:'ec'},
+  'VITAS公式SHOP':{owner:'VITAS',type:'mixed'},
+  '株式会社VITAS':{owner:'VITAS',type:'mixed'},
+  '嫁にもろて公式ショップ':{owner:'VITAS',type:'ec'}
 };
 const DEFAULT_MIXED={'BENI BITES(Shopify)':{'XJE2':true}};
 const DEFAULT_ALIAS={'XJE2':'Amazon'};
@@ -365,6 +369,7 @@ let S;
 try{S=JSON.parse(localStorage.getItem(LS)||'null')}catch(e){S=null}
 if(!S)S={shops:{},mixed:JSON.parse(JSON.stringify(DEFAULT_MIXED)),alias:Object.assign({},DEFAULT_ALIAS),exclude:{}};
 ['shops','mixed','alias','exclude'].forEach(k=>{if(!S[k])S[k]={};});
+if(!S.mixedMinQty)S.mixedMinQty=20;
 function persist(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
 function shopCfg(k){
   if(!S.shops[k]){S.shops[k]=DEFAULT_SHOPS[k]?Object.assign({},DEFAULT_SHOPS[k]):{owner:'',type:'ec'};persist();}
@@ -421,6 +426,7 @@ const parseDate=s=>{const m=nk(s).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/
 const toNum=s=>{const n=parseFloat(nk(s).replace(/,/g,''));return isFinite(n)?n:0;};
 
 /* 宛先から「会社名」を取り出す */
+const BIZ=/株式会社|有限会社|合同会社|\(株\)|\(有\)|LC|DC|TC|物流|センター|センタ|倉庫|FBA|Amazon|楽天|ジム|GYM|FITNESS|フィットネス|スポーツ|クラブ|\bSC\b|(サッカー|野球|バスケットボール|バレーボール|陸上|ラグビー|テニス|水泳|柔道|剣道|ハンドボール)部|大学|高校|高等学校|学園|病院|医院|クリニック|店/i;
 const MARK=/株式会社|有限会社|合同会社|合資会社|合名会社|\(株\)|\(有\)|\(同\)/;
 const LEGAL_G=/株式会社|有限会社|合同会社|合資会社|合名会社|一般社団法人|一般財団法人|社会福祉法人|医療法人|\(株\)|\(有\)|\(合\)|\(同\)|\(資\)|\(名\)/g;
 const stripHon=s=>s.replace(/(ご担当者?様?|ご担当|担当者様?|御中)/g,' ').replace(/\s*(様|殿)$/,'').replace(/\s+/g,' ').trim();
@@ -439,14 +445,14 @@ function parseFile(name,size,lm,text){
   const out={id:name+'|'+size+'|'+lm,name,size,lm,rows:[],minDate:'',maxDate:'',err:''};
   if(rows.length<1){out.err='空のファイルです';return out;}
   const h=rows[0].map(x=>nk(x));const ix={};
-  Object.entries(COLS).forEach(([k,v])=>ix[k]=h.indexOf(v));
-  const miss=REQ.filter(k=>ix[k]<0).map(k=>COLS[k]);
+  Object.entries(COLS).forEach(([k,v])=>{ix[k]=-1;for(const c of v){const i=h.indexOf(c);if(i>=0){ix[k]=i;break;}}});
+  const miss=REQ.filter(k=>ix[k]<0).map(k=>COLS[k].join('または'));
   if(miss.length){out.err='必要な列がありません：'+miss.join('、');return out;}
   const g=(r,k)=>ix[k]>=0?(r[ix[k]]??''):'';
   for(let i=1;i<rows.length;i++){
     const r=rows[i];const d=parseDate(g(r,'done'));const q=toNum(g(r,'qty'));
     if(!d||!q)continue;
-    out.rows.push([d,nk(g(r,'shop'))||'（店舗名なし）',nk(g(r,'slip')),deriveDest(g(r,'n1'),g(r,'a2'),g(r,'a3')),nk(g(r,'code')),nk(g(r,'pname')),q]);
+    out.rows.push([d,nk(g(r,'shop'))||'（店舗名なし）',nk(g(r,'slip')),deriveDest(g(r,'n1'),g(r,'a2'),g(r,'a3')),nk(g(r,'code')),nk(g(r,'pname')),q,BIZ.test(nk(g(r,'n1')+' '+g(r,'n2')))?1:0]);
     if(!out.minDate||d<out.minDate)out.minDate=d;if(!out.maxDate||d>out.maxDate)out.maxDate=d;
   }
   return out;
@@ -455,8 +461,16 @@ function parseFile(name,size,lm,text){
 /* ---------- 名寄せ ---------- */
 const BRANCH_TOKEN=/(支店|営業所|出張所|センター|センタ|倉庫|事業所|本社|本店|工場|DC|TC|LC|店|部|課)$/;
 const BRANCH_TAIL=/(支店|営業所|出張所|センター|センタ|倉庫|事業所|本社|本店|工場|DC|TC|LC|店)$/;
+const LEGAL1=new RegExp(LEGAL_G.source);
 function basicKey(raw){
-  let t=nk(raw).replace(/^.+?(株式会社|\(株\)|有限会社|\(有\))内\s*/,'').replace(LEGAL_G,' ').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  let t=nk(raw);
+  if(/amazon/i.test(t))return 'Amazon';
+  if(/楽天スーパー?ロジ/.test(t))return '楽天スーパーロジスティクス';
+  t=t.replace(/^.+?(株式会社|\(株\)|有限会社|\(有\))内\s*/,'');
+  const pm=t.match(/(センター|センタ|LC|DC|TC|物流|倉庫).*\(([^)]+)\)\s*$/);
+  if(pm&&!LEGAL1.test('('+pm[2]+')')&&/[^\d\s\-]/.test(pm[2]))t=pm[2];
+  {const tk=t.split(' ');const i=tk.findIndex(x=>LEGAL1.test(x));if(i>=0){const solo=tk[i].replace(LEGAL_G,'')==='';t=tk.slice(0,solo?i+2:i+1).join(' ');}}
+  t=t.replace(LEGAL_G,' ').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
   let tok=t.split(' ').filter(Boolean);
   if(tok.length>1){const i=tok.findIndex((x,j)=>j>0&&BRANCH_TOKEN.test(x));if(i>0)tok=tok.slice(0,i);}
   return tok.join(' ')||nk(raw);
@@ -487,22 +501,25 @@ function rebuild(){
   const slipOwner=new Map();
   cand.forEach(f=>{
     f.rows.forEach(r=>{
-      const[d,shop,slip,raw,c,n,q]=r;
+      const[d,shop,slip,raw,c,n,q,bz]=r;
       const so=slipOwner.get(slip);
       if(so!==undefined&&so!==f.id){stats.dup++;return;}
       slipOwner.set(slip,f.id);
       if(cutoff&&d<cutoff){stats.old++;return;}
-      records.push({d,shop,slip,r:raw,c,n,q});
+      records.push({d,shop,slip,r:raw,c,n,q,b:!!bz});
     });
   });
   derive();
 }
+function mixedAuto(x){return x.b||x.slipQ>=(+S.mixedMinQty||20);}
 function derive(){
-  const b2bRaws=new Set();
+  const b2bRaws=new Set();const slipQ=new Map();
+  records.forEach(x=>slipQ.set(x.slip,(slipQ.get(x.slip)||0)+x.q));
   records.forEach(x=>{
-    const sc=shopCfg(x.shop);
+    const sc=shopCfg(x.shop);x.slipQ=slipQ.get(x.slip);
     x.owner=sc.owner&&sc.owner.trim()?sc.owner.trim():UNASSIGNED;
-    x.type=sc.type==='mixed'?((S.mixed[x.shop]||{})[x.r]?'b2b':'ec'):(sc.type==='b2b'?'b2b':'ec');
+    if(sc.type==='mixed'){const m=(S.mixed[x.shop]||{})[x.r];x.type=m===true?'b2b':m===false?'ec':(mixedAuto(x)?'b2b':'ec');}
+    else x.type=sc.type==='b2b'?'b2b':'ec';
     if(x.type==='b2b')b2bRaws.add(x.r);
   });
   computeAutoKeys([...b2bRaws]);
@@ -752,7 +769,7 @@ function renderShops(){
   const owners=[...new Set(Object.values(S.shops).map(s=>s.owner).filter(Boolean))];
   $('#ownerList').innerHTML=owners.map(o=>`<option value="${esc(o)}">`).join('');
   const list=[...by.entries()].sort((a,b)=>{const ua=!shopCfg(a[0]).owner,ub=!shopCfg(b[0]).owner;if(ua!==ub)return ua?-1:1;const oa=shopCfg(a[0]).owner,ob=shopCfg(b[0]).owner;return oa===ob?b[1].q-a[1].q:oa.localeCompare(ob,'ja');});
-  $('#shopTable').innerHTML=`<table class="mg"><thead><tr><th>受注店舗名（CSV）</th><th style="width:240px">荷主</th><th style="width:150px">区分</th><th class="num">個数</th><th class="num">件数</th></tr></thead><tbody>${
+  $('#shopTable').innerHTML=`<table class="mg"><thead><tr><th>受注店舗名（無いCSVは荷送人名）</th><th style="width:240px">荷主</th><th style="width:150px">区分</th><th class="num">個数</th><th class="num">件数</th></tr></thead><tbody>${
     list.map(([k,o])=>{const c=shopCfg(k);return `<tr class="${c.owner?'':'unset'}"><td>${esc(k)}${c.owner?'':' <span class="man">未割当</span>'}</td><td><input type="text" list="ownerList" data-shop-owner="${esc(k)}" value="${esc(c.owner)}" placeholder="荷主名を入力"></td><td><select data-shop-type="${esc(k)}">${Object.entries(TYPE_LABEL).map(([v,l])=>`<option value="${v}"${c.type===v?' selected':''}>${l}</option>`).join('')}</select> <span class="tag t-${c.type}">${TYPE_LABEL[c.type]}</span></td><td class="num">${nf(o.q)}</td><td class="num">${nf(o.s.size)}</td></tr>`;}).join('')}</tbody></table>`;
 }
 function renderMixed(){
@@ -760,13 +777,15 @@ function renderMixed(){
   const card=$('#mixedCard');const el=$('#mixedTable');
   const present=mixedShops.filter(k=>records.some(r=>r.shop===k));
   card.style.display=present.length?'':'none';if(!present.length)return;
-  let h='<table class="mg"><thead><tr><th style="width:70px">卸</th><th>宛先（CSVから取り出した名前）</th><th class="num">個数</th><th class="num">件数</th></tr></thead><tbody>';
+  $('#mixedMin').value=S.mixedMinQty;
+  let h='<table class="mg"><thead><tr><th>宛先（CSVから取り出した名前）</th><th style="width:90px">判定</th><th class="num">個数</th><th class="num">件数</th><th style="width:150px">指定</th></tr></thead><tbody>';
   present.forEach(shop=>{
-    const by=new Map();records.filter(r=>r.shop===shop).forEach(r=>{let o=by.get(r.r);if(!o){o={q:0,s:new Set()};by.set(r.r,o);}o.q+=r.q;o.s.add(r.slip);});
-    const sel=S.mixed[shop]||{};
-    h+=`<tr class="grp"><td></td><td>${esc(shop)}（${esc(shopCfg(shop).owner||UNASSIGNED)}）</td><td></td><td></td></tr>`;
-    [...by.entries()].sort((a,b)=>(+!!sel[b[0]])-(+!!sel[a[0]])||b[1].q-a[1].q).slice(0,200).forEach(([raw,o])=>{
-      h+=`<tr><td><input type="checkbox" data-mix-shop="${esc(shop)}" data-mix-raw="${esc(raw)}"${sel[raw]?' checked':''}></td><td class="raw">${esc(raw)}</td><td class="num">${nf(o.q)}</td><td class="num">${nf(o.s.size)}</td></tr>`;});
+    const by=new Map();records.filter(r=>r.shop===shop).forEach(r=>{let o=by.get(r.r);if(!o){o={q:0,s:new Set(),b2b:0};by.set(r.r,o);}o.q+=r.q;o.s.add(r.slip);if(r.type==='b2b')o.b2b+=r.q;});
+    const sel=S.mixed[shop]||{};const ents=[...by.entries()];const nB=ents.filter(e=>e[1].b2b>0).length;
+    h+=`<tr class="grp"><td>${esc(shop)}（${esc(shopCfg(shop).owner||UNASSIGNED)}）　卸 ${nB}件／個人 ${ents.length-nB}件</td><td></td><td></td><td></td><td></td></tr>`;
+    ents.sort((a,b)=>(b[1].b2b>0)-(a[1].b2b>0)||b[1].q-a[1].q).slice(0,200).forEach(([raw,o])=>{
+      const v=sel[raw]===true?'b2b':sel[raw]===false?'ec':'auto';const isB=o.b2b>0;
+      h+=`<tr><td class="raw">${esc(raw)}</td><td><span class="tag t-${isB?'b2b':'ec'}">${isB?'卸':'個人'}</span></td><td class="num">${nf(o.q)}</td><td class="num">${nf(o.s.size)}</td><td><select data-mix-shop="${esc(shop)}" data-mix-raw="${esc(raw)}"><option value="auto"${v==='auto'?' selected':''}>自動</option><option value="b2b"${v==='b2b'?' selected':''}>卸に固定</option><option value="ec"${v==='ec'?' selected':''}>個人に固定</option></select></td></tr>`;});
   });
   el.innerHTML=h+'</tbody></table>';
 }
@@ -816,7 +835,7 @@ function updateStatus(){
 /* ---------- 設定ファイル ---------- */
 async function importSettings(file,silent){
   try{const o=JSON.parse(await readText(file));if(!o||o.type!=='pareto-kun-settings'||!o.settings)throw 0;
-    const s=o.settings;S={shops:s.shops||{},mixed:s.mixed||{},alias:s.alias||{},exclude:s.exclude||{}};persist();setDirty(false);
+    const s=o.settings;S={shops:s.shops||{},mixed:s.mixed||{},alias:s.alias||{},exclude:s.exclude||{},mixedMinQty:s.mixedMinQty||20};persist();setDirty(false);
     toast(silent?'フォルダ内の共有設定を反映しました':'設定ファイルを読み込みました');if(!silent)derive();
   }catch(e){toast('設定ファイルの形式が正しくありません');}
 }
@@ -909,7 +928,8 @@ $('#btnWipe').addEventListener('click',async()=>{if(!confirm('このPCに保存�
 $('#shopTable').addEventListener('change',e=>{const t=e.target;
   if(t.dataset.shopOwner!==undefined){shopCfg(t.dataset.shopOwner).owner=t.value.trim();settingsChanged();}
   else if(t.dataset.shopType!==undefined){shopCfg(t.dataset.shopType).type=t.value;settingsChanged();}});
-$('#mixedTable').addEventListener('change',e=>{const t=e.target;if(t.dataset.mixShop===undefined)return;const m=S.mixed[t.dataset.mixShop]||(S.mixed[t.dataset.mixShop]={});if(t.checked)m[t.dataset.mixRaw]=true;else delete m[t.dataset.mixRaw];settingsChanged();});
+$('#mixedTable').addEventListener('change',e=>{const t=e.target;if(t.dataset.mixShop===undefined)return;const m=S.mixed[t.dataset.mixShop]||(S.mixed[t.dataset.mixShop]={});if(t.value==='b2b')m[t.dataset.mixRaw]=true;else if(t.value==='ec')m[t.dataset.mixRaw]=false;else delete m[t.dataset.mixRaw];settingsChanged();});
+$('#mixedMin').addEventListener('change',e=>{const v=Math.max(1,parseInt(e.target.value,10)||20);S.mixedMinQty=v;settingsChanged();});
 $('#mgSearch').addEventListener('input',renderMerge);
 $('#mgReset').addEventListener('click',()=>{if(!confirm('手動で設定した統合をすべて解除し、自動統合に戻しますか？'))return;S.alias=Object.assign({},DEFAULT_ALIAS);settingsChanged();});
 $('#mgTable').addEventListener('change',e=>{const t=e.target;
