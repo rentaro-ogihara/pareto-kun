@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>パレート君</title>
+<meta name="description" content="LOGILESS出荷実績CSVから荷主・卸先・商品の出荷を分析するツール">
+<meta name="theme-color" content="#1e1b4b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<script src="chart.umd.min.js"></script>
+<style>
+:root{--bg:#f3f4fa;--card:#fff;--ink:#0f172a;--sub:#64748b;--line:#e2e8f0;--accent:#4f46e5;--accent-soft:#e0e7ff;--warn:#f97316;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;font-size:14px;line-height:1.55}
+button,input,select{font:inherit}
+header{background:linear-gradient(120deg,#1e1b4b,#312e81 55%,#4338ca);color:#fff;padding:12px 20px}
+.hrow{max-width:1320px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:38px;height:38px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+h1{font-size:21px;margin:0;letter-spacing:.06em}
+h1 small{display:block;font-size:11px;font-weight:400;opacity:.75;letter-spacing:.02em}
+.hctl{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hctl label{font-size:12px;opacity:.85;margin-right:4px}
+.hctl select{padding:7px 10px;border-radius:9px;border:0;min-width:180px;font-weight:700}
+.seg{display:inline-flex;background:#e2e8f0;border-radius:9px;padding:3px}
+.seg button{border:0;background:transparent;padding:4px 12px;border-radius:7px;cursor:pointer;color:#475569;font-size:12px;font-weight:700}
+.seg button.on{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+header .seg{background:rgba(255,255,255,.15)}
+header .seg button{color:#e0e7ff}
+header .seg button.on{background:#fff;color:#312e81}
+.wrap{max-width:1320px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.07),0 1px 1px rgba(15,23,42,.03);padding:16px 18px}
+.card h2{font-size:15px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+.card h2 .ic{width:26px;height:26px;border-radius:8px;display:inline-grid;place-items:center;background:var(--accent-soft);font-size:14px}
+.hint{color:var(--sub);font-size:12px;margin:0 0 10px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(440px,1fr))}
+@media(max-width:760px){.g2{grid-template-columns:1fr}}
+.mt{margin-top:16px}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font-weight:700}
+.btn:hover{filter:brightness(1.08)}
+.btn.sub{background:#fff;color:var(--accent);border:1.5px solid var(--accent)}
+.btn.ghost{background:#f1f5f9;color:#334155;border:1px solid var(--line);font-weight:500}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.load{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.drop{border:2px dashed #a5b4fc;border-radius:14px;background:#f8f9ff;padding:14px 16px;transition:.15s}
+.drop.on{background:#e0e7ff;border-color:var(--accent)}
+.status{font-size:12px;color:var(--sub);margin-top:8px}
+.status b{color:var(--ink)}
+.warnbox{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px}
+.warnbox a{color:#9a3412;font-weight:700;cursor:pointer;text-decoration:underline}
+.filters{position:sticky;top:0;z-index:20;background:rgba(243,244,250,.95);backdrop-filter:blur(6px);padding:10px 0;margin-top:6px;border-bottom:1px solid var(--line)}
+.frow{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.fitem{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+.fitem input,.fitem select{padding:5px 8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink);max-width:230px}
+.quick button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:#334155}
+.quick button:hover{border-color:var(--accent);color:var(--accent)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 2px}
+.tabs button{border:0;background:#fff;border-radius:10px 10px 0 0;padding:9px 15px;cursor:pointer;font-weight:700;color:#475569;border-bottom:3px solid transparent;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.panel{display:none;padding-top:12px}
+.panel.on{display:block}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.kpi{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.07);border-top:4px solid var(--c,#4f46e5)}
+.kpi .l{font-size:12px;color:var(--sub)}
+.kpi .v{font-size:26px;font-weight:800;letter-spacing:.02em}
+.kpi .v small{font-size:13px;font-weight:600;color:var(--sub);margin-left:3px}
+.kpi .s{font-size:11px;color:var(--sub)}
+.insights{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.ins{background:#fff;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 1px 3px rgba(15,23,42,.07)}
+.ins .e{font-size:22px;line-height:1}
+.ins .t{font-size:13px}
+.ins .t b{font-size:15px}
+.chartbox{position:relative;height:330px}
+.chartbox.tall{height:400px}
+.ctl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:12px;color:var(--sub)}
+table{border-collapse:collapse;width:100%}
+.tblwrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:10px}
+.rank th,.rank td{padding:7px 10px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
+.rank th{position:sticky;top:0;background:#f8fafc;font-size:12px;color:var(--sub);z-index:1}
+.rank td.name{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+.num{text-align:right!important;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.barcell{display:flex;align-items:center;gap:8px;min-width:170px}
+.bar{flex:1;height:10px;background:#f1f5f9;border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#818cf8,#4f46e5);border-radius:6px}
+.pct{font-size:12px;font-weight:700;width:48px;text-align:right}
+.badge{display:inline-block;min-width:24px;text-align:center;border-radius:6px;font-weight:800;font-size:12px;padding:1px 6px;color:#fff}
+.bA{background:#4f46e5}.bB{background:#f59e0b}.bC{background:#94a3b8}
+.tag{display:inline-block;border-radius:6px;font-size:11px;font-weight:700;padding:1px 7px}
+.t-b2b{background:#e0e7ff;color:#3730a3}.t-ec{background:#fce7f3;color:#9d174d}.t-mixed{background:#fef3c7;color:#92400e}
+.abcs{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.abc{border-radius:12px;padding:12px 14px;color:#fff}
+.abc .big{font-size:24px;font-weight:800}
+.cross th,.cross td{border:1px solid #eef2f7;padding:6px 8px;font-size:12px}
+.cross thead th{position:sticky;top:0;background:#f8fafc;z-index:2;min-width:84px;max-width:110px;white-space:normal;vertical-align:bottom;font-weight:700;color:#334155}
+.cross tbody th{position:sticky;left:0;background:#f8fafc;z-index:1;text-align:left;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.cross thead th:first-child{left:0;z-index:3}
+.cross td{text-align:right;font-variant-numeric:tabular-nums;min-width:70px}
+.cross .tot{background:#f1f5f9!important;font-weight:800}
+.cal{display:grid;grid-template-columns:70px repeat(7,1fr);gap:4px;font-size:11px}
+.cal .h{text-align:center;color:var(--sub);font-weight:700}
+.cal .wk{color:var(--sub);display:flex;align-items:center}
+.cal .c{border-radius:6px;padding:4px 5px;min-height:42px;background:#f8fafc;border:1px solid #eef2f7}
+.cal .c .d{color:var(--sub);font-size:10px}
+.cal .c .q{font-weight:800;font-size:12px}
+.cal .c.out{background:transparent;border-color:transparent}
+.legend{display:flex;gap:4px;align-items:center;font-size:11px;color:var(--sub);margin-top:8px}
+.legend i{width:22px;height:10px;border-radius:3px;display:inline-block}
+.empty{text-align:center;padding:40px 20px}
+.empty img{width:86px;height:86px;border-radius:22px;box-shadow:0 6px 20px rgba(49,46,129,.3)}
+.steps{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));text-align:left;margin-top:18px}
+.step{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(15,23,42,.07)}
+.step .n{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;margin-bottom:6px}
+.mg th,.mg td{padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:13px;text-align:left}
+.mg th{position:sticky;top:0;background:#f8fafc;z-index:1;font-size:12px;color:var(--sub)}
+.mg tr.grp td{background:#eef2ff;font-weight:700}
+.mg tr.grp.ex td{background:#f1f5f9;color:#94a3b8;text-decoration:line-through}
+.mg tr.unset td{background:#fff7ed}
+.mg input[type=text]{padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;width:100%;min-width:160px}
+.mg select{padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px}
+.mg td:has(select){white-space:nowrap}
+.mg .raw{padding-left:26px;color:#334155}
+.mg .man{font-size:10px;background:#fde68a;color:#92400e;border-radius:4px;padding:0 5px;margin-left:6px}
+.dirty{background:#f97316!important;border-color:#f97316!important;color:#fff!important}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.on{opacity:.95}
+.flist{font-size:12px;color:var(--sub);max-height:180px;overflow:auto;margin:6px 0 0;padding-left:18px}
+.busy{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;place-items:center;z-index:98}
+.busy.on{display:grid}
+.busy div{background:#fff;border-radius:14px;padding:18px 26px;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="brand"><img src="icons/icon-192.png" alt=""><h1>パレート君<small>LOGILESS 出荷実績 分析</small></h1></div>
+    <div class="hctl">
+      <div><label for="ownerSel">荷主</label><select id="ownerSel"></select></div>
+      <div><label>対象</label><div class="seg" id="scope"><button data-s="all" class="on">全出荷</button><button data-s="b2b">卸のみ</button><button data-s="ec">個人のみ</button></div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card drop" id="drop">
+    <div class="load">
+      <button class="btn" id="btnReopen" style="display:none">🔄 フォルダから最新を取り込む</button>
+      <button class="btn sub" id="btnFolder">📁 フォルダを選んで取り込む</button>
+      <button class="btn ghost" id="btnFiles">CSVファイルを追加</button>
+      <span class="hint" style="margin:0">CSVはこの画面にドラッグ＆ドロップでも追加できます。データはこのPCの中だけで処理し、外部には送信しません。</span>
+    </div>
+    <input type="file" id="inFiles" accept=".csv,.json" multiple hidden>
+    <input type="file" id="inDir" webkitdirectory multiple hidden>
+    <div class="status" id="status"></div>
+    <div id="warn"></div>
+  </div>
+
+  <div id="emptyView" class="empty">
+    <img src="icons/icon-192.png" alt="">
+    <h2 style="margin:12px 0 4px">出荷実績CSVを取り込むと、ここにグラフが表示されます</h2>
+    <p class="hint">毎日の運用は、次の3ステップです。</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><b>CSVを保存</b><br>ロジレスから前日分の出荷実績CSV（全荷主分）をダウンロードし、共有ドライブの「出荷実績CSV」フォルダに、そのまま保存します。ファイル名は変更不要です。</div>
+      <div class="step"><div class="n">2</div><b>フォルダを取り込む</b><br>初回は「フォルダを選んで取り込む」で、そのフォルダを選びます。2回目からは「フォルダから最新を取り込む」を押すと、新しいCSVだけを読み込みます。</div>
+      <div class="step"><div class="n">3</div><b>荷主を選んで見る</b><br>右上で荷主を選ぶと、その荷主の分析に切り替わります。「全荷主」では全体の合計を、「荷主比較」タブでは荷主どうしを比べられます。</div>
+    </div>
+  </div>
+
+  <div id="dash" style="display:none">
+    <div class="filters">
+      <div class="frow">
+        <div class="fitem">期間 <input type="date" id="fFrom"> 〜 <input type="date" id="fTo"></div>
+        <div class="fitem quick" id="quick">
+          <button data-q="all">全期間</button><button data-q="7">直近7日</button><button data-q="30">直近30日</button><button data-q="thisM">今月</button><button data-q="lastM">先月</button>
+        </div>
+        <div class="fitem">集計単位 <div class="seg" id="gran"><button data-g="day" class="on">日別</button><button data-g="week">週別</button><button data-g="month">月別</button></div></div>
+        <div class="fitem">卸先 <select id="fDest"></select></div>
+        <div class="fitem">商品 <select id="fProd"></select></div>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button data-t="overview" class="on">🏠 概要</button>
+      <button data-t="owners">⚖️ 荷主比較</button>
+      <button data-t="dest">🏢 卸先</button>
+      <button data-t="prod">📦 商品</button>
+      <button data-t="wave">📅 曜日・波動</button>
+      <button data-t="cross">🔢 卸先×商品</button>
+      <button data-t="abc">🏆 ABC分析</button>
+      <button data-t="settings">⚙️ 設定</button>
+    </div>
+
+    <div class="panel on" data-p="overview">
+      <div class="kpis" id="kpis"></div>
+      <div class="insights mt" id="insights"></div>
+      <div class="grid g2 mt">
+        <div class="card"><h2><span class="ic">🏢</span>卸先ごとの割合</h2><p class="hint">個人宛は「個人（店舗名）」にまとめて表示しています。</p><div class="chartbox"><canvas id="ovDest"></canvas></div></div>
+        <div class="card"><h2><span class="ic">📦</span>商品ごとの割合</h2><p class="hint">出荷個数（ピース）に占める各商品の割合です。</p><div class="chartbox"><canvas id="ovProd"></canvas></div></div>
+      </div>
+      <div class="card mt"><h2><span class="ic">📈</span>出荷個数の推移</h2><p class="hint">棒＝出荷個数、折れ線＝出荷件数（伝票数）。点線は出荷があった日（週・月）の平均個数です。</p><div class="chartbox"><canvas id="ovTrend"></canvas></div></div>
+    </div>
+
+    <div class="panel" data-p="owners">
+      <p class="hint" style="margin-top:0">この画面は、右上の荷主選択に関係なく<b>全荷主を比較</b>します（期間・対象の切り替えは反映されます）。</p>
+      <div class="grid g2">
+        <div class="card"><h2><span class="ic">🍩</span>荷主ごとの割合</h2><p class="hint">出荷個数（ピース）に占める各荷主の割合です。</p><div class="chartbox"><canvas id="oDonut"></canvas></div></div>
+        <div class="card"><h2><span class="ic">📊</span>荷主ランキング</h2><p class="hint">卸比率＝その荷主の出荷個数のうち卸向けの割合です。</p><div id="oRank" class="tblwrap" style="max-height:330px"></div></div>
+      </div>
+      <div class="card mt"><h2><span class="ic">📈</span>荷主ごとの推移</h2>
+        <div class="ctl">表示 <div class="seg" data-mode="owner"><button data-m="qty" class="on">個数</button><button data-m="share">構成比（%）</button></div>
+          上位 <div class="seg" data-top="owner"><button data-n="5">5荷主</button><button data-n="8" class="on">8荷主</button><button data-n="12">12荷主</button></div></div>
+        <div class="chartbox tall"><canvas id="oTrend"></canvas></div></div>
+      <div class="grid g2 mt">
+        <div class="card"><h2><span class="ic">🔀</span>卸と個人の内訳（荷主別）</h2><p class="hint">各荷主の出荷個数を、卸向けと個人向けに分けています。</p><div class="chartbox"><canvas id="oMix"></canvas></div></div>
+        <div class="card"><h2><span class="ic">🛒</span>店舗（販路）ごとの割合</h2><p class="hint" id="oShopHint"></p><div class="chartbox"><canvas id="oShop"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel" data-p="dest">
+      <div class="grid g2">
+        <div class="card"><h2><span class="ic">🍩</span>卸先ごとの割合</h2><p class="hint">上位7件を色分けし、残りは「その他」にまとめています。</p><div class="chartbox"><canvas id="dDonut"></canvas></div></div>
+        <div class="card"><h2><span class="ic">📊</span>卸先ランキング</h2><p class="hint">件数＝出荷件数（伝票数）、1件あたり＝1回の出荷での平均個数です。</p><div id="dRank" class="tblwrap" style="max-height:330px"></div></div>
+      </div>
+      <div class="card mt"><h2><span class="ic">📈</span>卸先ごとの推移</h2>
+        <div class="ctl">表示 <div class="seg" data-mode="dest"><button data-m="qty" class="on">個数</button><button data-m="share">構成比（%）</button></div>
+          上位 <div class="seg" data-top="dest"><button data-n="3">3件</button><button data-n="5" class="on">5件</button><button data-n="8">8件</button></div></div>
+        <div class="chartbox tall"><canvas id="dTrend"></canvas></div></div>
+    </div>
+
+    <div class="panel" data-p="prod">
+      <div class="grid g2">
+        <div class="card"><h2><span class="ic">🍩</span>商品ごとの割合</h2><p class="hint">上位7品を色分けし、残りは「その他」にまとめています。</p><div class="chartbox"><canvas id="pDonut"></canvas></div></div>
+        <div class="card"><h2><span class="ic">📊</span>商品ランキング</h2><p class="hint">件数＝その商品を含む出荷の件数です。</p><div id="pRank" class="tblwrap" style="max-height:330px"></div></div>
+      </div>
+      <div class="card mt"><h2><span class="ic">📈</span>商品ごとの推移</h2>
+        <div class="ctl">表示 <div class="seg" data-mode="prod"><button data-m="qty" class="on">個数</button><button data-m="share">構成比（%）</button></div>
+          上位 <div class="seg" data-top="prod"><button data-n="3">3品</button><button data-n="5" class="on">5品</button><button data-n="8">8品</button></div></div>
+        <div class="chartbox tall"><canvas id="pTrend"></canvas></div></div>
+    </div>
+
+    <div class="panel" data-p="wave">
+      <div class="insights" id="wInsights"></div>
+      <div class="grid g2 mt">
+        <div class="card"><h2><span class="ic">📅</span>曜日別の平均（1日あたり）</h2><p class="hint">出荷があった日の平均です。オレンジが最も多い曜日。人員配置の目安に使えます。</p><div class="chartbox"><canvas id="wWeek"></canvas></div></div>
+        <div class="card"><h2><span class="ic">🗓️</span>カレンダー（日ごとの出荷個数）</h2><p class="hint">色が濃いほど出荷が多い日です。</p><div id="wCal"></div></div>
+      </div>
+      <div class="card mt"><h2><span class="ic">🌊</span>日別の波動</h2><p class="hint">点線は平均、赤い点は出荷が特に多かった上位3日です（この表示は常に日別）。</p><div class="chartbox"><canvas id="wDaily"></canvas></div></div>
+    </div>
+
+    <div class="panel" data-p="cross">
+      <div class="card">
+        <h2><span class="ic">🔢</span>卸先 × 商品 クロス表</h2>
+        <p class="hint">どの卸先がどの商品を多く取っているかを、色の濃さで表しています。</p>
+        <div class="ctl">
+          表示 <div class="seg" id="cMode"><button data-m="qty" class="on">個数</button><button data-m="row">卸先内の割合</button><button data-m="col">商品内の割合</button></div>
+          卸先 <div class="seg" id="cRows"><button data-n="10">上位10</button><button data-n="20" class="on">上位20</button><button data-n="9999">すべて</button></div>
+          商品 <div class="seg" id="cCols"><button data-n="8">上位8</button><button data-n="15" class="on">上位15</button><button data-n="9999">すべて</button></div>
+        </div>
+        <div id="cTable" class="tblwrap" style="max-height:620px"></div>
+      </div>
+    </div>
+
+    <div class="panel" data-p="abc">
+      <div class="card">
+        <h2><span class="ic">🏆</span>ABC分析（パレート図）</h2>
+        <p class="hint">出荷個数の多い順に並べ、累計で70%までをA、90%までをB、残りをCとしています。</p>
+        <div class="ctl">対象 <div class="seg" id="abcDim"><button data-d="prod" class="on">商品</button><button data-d="dest">卸先</button></div></div>
+        <div class="abcs" id="abcCards"></div>
+        <div class="insights mt" id="abcIns"></div>
+        <div class="chartbox tall mt"><canvas id="abcChart"></canvas></div>
+        <div id="abcTable" class="tblwrap mt"></div>
+      </div>
+    </div>
+
+    <div class="panel" data-p="settings">
+      <div class="card">
+        <h2><span class="ic">💾</span>設定の保存と共有</h2>
+        <p class="hint">店舗と荷主の対応・卸／個人の区分・卸先の名寄せを、CSVと同じフォルダに「パレート君_設定.json」として保存します。フォルダを取り込むと自動で反映されるため、社内の全員が同じ設定で見られます。</p>
+        <div class="load">
+          <button class="btn" id="btnSave">設定をフォルダに保存</button>
+          <button class="btn ghost" id="btnLoadSet">設定ファイルを読み込む</button>
+          <input type="file" id="inSet" accept=".json" hidden>
+        </div>
+      </div>
+      <div class="card mt" id="shopCard">
+        <h2><span class="ic">🛒</span>店舗 → 荷主の対応と、卸／個人の区分</h2>
+        <p class="hint">CSVの「受注店舗名」で荷主を振り分けます。新しい店舗が出てきたら、ここで荷主名と区分を入れてください。<br>
+          区分：<span class="tag t-b2b">卸</span> すべて卸先として分析　<span class="tag t-ec">個人向け</span> 「個人（店舗名）」にまとめる　<span class="tag t-mixed">混在</span> 下の表で選んだ宛先だけを卸にする</p>
+        <div id="shopTable" class="tblwrap" style="max-height:480px"></div>
+      </div>
+      <div class="card mt" id="mixedCard">
+        <h2><span class="ic">🔀</span>混在店舗の卸先の指定</h2>
+        <p class="hint">区分が「混在」の店舗について、卸として扱う宛先にチェックを入れてください。チェックしていない宛先は個人向けとして集計します。</p>
+        <div id="mixedTable" class="tblwrap" style="max-height:420px"></div>
+      </div>
+      <div class="card mt">
+        <h2><span class="ic">🔗</span>卸先の名寄せ（表記ゆれの統合）</h2>
+        <p class="hint">「株式会社／㈱／(株)」の違い、「ご担当者」、「○○センター・支店・営業所・LC」などを自動で会社単位にまとめています。まとめ方を変えたいときは「統合後の名前」を書き換えてください。同じ名前にした宛先は1社として集計されます（全荷主で共通の設定です）。</p>
+        <div class="ctl">
+          <input type="text" id="mgSearch" placeholder="名前で絞り込み" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;min-width:220px">
+          <button class="btn ghost sm" id="mgReset">手動の統合をすべて解除</button>
+        </div>
+        <div id="mgTable" class="tblwrap" style="max-height:560px"></div>
+      </div>
+      <div class="card mt">
+        <h2><span class="ic">📄</span>取り込み済みのデータ</h2>
+        <p class="hint">直近半年（最新の出荷日から183日）のデータを、このPCの中に保存しています。それより古いデータは自動で集計対象から外れます。</p>
+        <ul class="flist" id="fileList"></ul>
+        <div class="load mt"><button class="btn ghost sm" id="btnWipe">このPCに保存したデータをすべて削除</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="busy" id="busy"><div id="busyMsg">読み込み中…</div></div>
+<datalist id="destList"></datalist>
+<datalist id="ownerList"></datalist>
+
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf=n=>Math.round(n).toLocaleString('ja-JP');
+const pf=n=>(isFinite(n)?(n*100).toFixed(1):'0.0')+'%';
+const short=(s,n=16)=>{s=String(s);return s.length>n?s.slice(0,n)+'…':s};
+const COLORS=['#4f46e5','#f97316','#10b981','#e11d48','#8b5cf6','#eab308','#06b6d4','#ec4899','#84cc16','#64748b','#0ea5e9','#a16207'];
+const OTHER='#cbd5e1';
+const WD=['日','月','火','水','木','金','土'];
+const RETAIN_DAYS=183;
+const SETTINGS_NAME='パレート君_設定.json';
+const LS='paretoKun_settings_v1';
+const UNASSIGNED='（未割当）';
+
+/* ---------- LOGILESS 出荷実績CSV（OutboundDeliveryLine）の列 ---------- */
+const COLS={slip:'伝票コード',done:'完了日時',shop:'受注店舗名',n1:'お届け先名1',a2:'お届け先 住所2',a3:'お届け先 住所3',code:'商品コード',pname:'商品名',qty:'数量'};
+const REQ=['slip','done','shop','n1','code','qty'];
+
+/* ---------- 初期設定（店舗→荷主・区分） ---------- */
+const DEFAULT_SHOPS={
+  'REDENTA BtoB':{owner:'リデンタ',type:'b2b'},
+  'REDENTA Amazon':{owner:'リデンタ',type:'ec'},
+  'REDENTA SHOPIFY':{owner:'リデンタ',type:'ec'},
+  'REDENTA 楽天':{owner:'リデンタ',type:'ec'},
+  '株式会社KOKOBUY':{owner:'KOKOBUY',type:'b2b'},
+  '楽天市場':{owner:'KOKOBUY',type:'ec'},
+  'Qoo10':{owner:'KOKOBUY',type:'ec'},
+  'BENI BITES(Shopify)':{owner:'BENI BITES',type:'mixed'},
+  'さとふる宮古市':{owner:'redhorse',type:'ec'},
+  'サトカラ(カウシェ)':{owner:'redhorse',type:'ec'},
+  '【カラーミー】しーぷらショップ':{owner:'シーズナルプランツ',type:'ec'},
+  '【卸し用】シーズナルプランツ':{owner:'シーズナルプランツ',type:'b2b'},
+  'SAURUS JAPAN株式会社':{owner:'SAURUS JAPAN',type:'b2b'},
+  'NINZIA(Amazon)':{owner:'NINZIA',type:'b2b'}
+};
+const DEFAULT_MIXED={'BENI BITES(Shopify)':{'XJE2':true}};
+const DEFAULT_ALIAS={'XJE2':'Amazon'};
+
+/* ---------- 設定 ---------- */
+let S;
+try{S=JSON.parse(localStorage.getItem(LS)||'null')}catch(e){S=null}
+if(!S)S={shops:{},mixed:JSON.parse(JSON.stringify(DEFAULT_MIXED)),alias:Object.assign({},DEFAULT_ALIAS),exclude:{}};
+['shops','mixed','alias','exclude'].forEach(k=>{if(!S[k])S[k]={};});
+function persist(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function shopCfg(k){
+  if(!S.shops[k]){S.shops[k]=DEFAULT_SHOPS[k]?Object.assign({},DEFAULT_SHOPS[k]):{owner:'',type:'ec'};persist();}
+  return S.shops[k];
+}
+let dirty=false;
+function setDirty(v){dirty=v;const b=$('#btnSave');b.classList.toggle('dirty',v);b.textContent=v?'設定をフォルダに保存（未保存の変更あり）':'設定をフォルダに保存';}
+
+/* ---------- IndexedDB ---------- */
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('paretoKun',1);r.onupgradeneeded=()=>{r.result.createObjectStore('files',{keyPath:'id'});r.result.createObjectStore('kv');};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function tx(store,mode,fn){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction(store,mode);const s=t.objectStore(store);const out=fn(s);t.oncomplete=()=>res(out&&out.result!==undefined?out.result:out);t.onerror=()=>rej(t.error);});}
+const kvGet=k=>tx('kv','readonly',s=>s.get(k));
+const kvSet=(k,v)=>tx('kv','readwrite',s=>s.put(v,k));
+const filesAll=()=>tx('files','readonly',s=>s.getAll());
+const filePut=f=>tx('files','readwrite',s=>s.put(f));
+const fileDel=id=>tx('files','readwrite',s=>s.delete(id));
+const filesClear=()=>tx('files','readwrite',s=>s.clear());
+
+/* ---------- 状態 ---------- */
+let files=[];     // キャッシュ済みファイル {id,name,size,lm,minDate,maxDate,rows,err,old}
+let records=[];   // {d,shop,slip,r,c,n,q,owner,type,dest,prod}
+let stats={dup:0,old:0};
+let cutoff='';
+let dirHandle=null;
+let autoKey=new Map();
+let prodName=new Map();
+const charts={};
+const F={owner:'',scope:'all',from:'',to:'',gran:'day',dest:'',prod:'',tab:'overview',mode:{dest:'qty',prod:'qty',owner:'qty'},top:{dest:5,prod:5,owner:8},cMode:'qty',cRows:20,cCols:15,abc:'prod'};
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
+function busy(on,msg){$('#busy').classList.toggle('on',on);if(msg)$('#busyMsg').textContent=msg;}
+
+/* ---------- CSV ---------- */
+async function readText(file){
+  const u8=new Uint8Array(await file.arrayBuffer());
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(u8).replace(/^﻿/,'');}
+  catch(e){return new TextDecoder('shift_jis').decode(u8);}
+}
+function parseCSV(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(f);f='';}
+    else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';}
+    else if(c!=='\r')f+=c;
+  }
+  if(f!==''||row.length){row.push(f);rows.push(row);}
+  return rows;
+}
+const nk=s=>String(s??'').normalize('NFKC').replace(/\s+/g,' ').trim();
+const parseDate=s=>{const m=nk(s).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);return m?m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'):'';};
+const toNum=s=>{const n=parseFloat(nk(s).replace(/,/g,''));return isFinite(n)?n:0;};
+
+/* 宛先から「会社名」を取り出す */
+const MARK=/株式会社|有限会社|合同会社|合資会社|合名会社|\(株\)|\(有\)|\(同\)/;
+const LEGAL_G=/株式会社|有限会社|合同会社|合資会社|合名会社|一般社団法人|一般財団法人|社会福祉法人|医療法人|\(株\)|\(有\)|\(合\)|\(同\)|\(資\)|\(名\)/g;
+const stripHon=s=>s.replace(/(ご担当者?様?|ご担当|担当者様?|御中)/g,' ').replace(/\s*(様|殿)$/,'').replace(/\s+/g,' ').trim();
+function deriveDest(n1,a2,a3){
+  const A=stripHon(nk(n1)),B=nk(a2),C=nk(a3);
+  if(C){const t=C.replace(LEGAL_G,' ').trim().split(' ')[0]||'';if(t.length>=2&&A.replace(/\s/g,'').includes(t))return C;}
+  if(MARK.test(A))return A;
+  if(MARK.test(B))return B;
+  if(MARK.test(C))return C;
+  if(!A)return B||C||'（宛先名なし）';
+  return A;
+}
+
+function parseFile(name,size,lm,text){
+  const rows=parseCSV(text).filter(r=>r.some(c=>String(c).trim()!==''));
+  const out={id:name+'|'+size+'|'+lm,name,size,lm,rows:[],minDate:'',maxDate:'',err:''};
+  if(rows.length<1){out.err='空のファイルです';return out;}
+  const h=rows[0].map(x=>nk(x));const ix={};
+  Object.entries(COLS).forEach(([k,v])=>ix[k]=h.indexOf(v));
+  const miss=REQ.filter(k=>ix[k]<0).map(k=>COLS[k]);
+  if(miss.length){out.err='必要な列がありません：'+miss.join('、');return out;}
+  const g=(r,k)=>ix[k]>=0?(r[ix[k]]??''):'';
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i];const d=parseDate(g(r,'done'));const q=toNum(g(r,'qty'));
+    if(!d||!q)continue;
+    out.rows.push([d,nk(g(r,'shop'))||'（店舗名なし）',nk(g(r,'slip')),deriveDest(g(r,'n1'),g(r,'a2'),g(r,'a3')),nk(g(r,'code')),nk(g(r,'pname')),q]);
+    if(!out.minDate||d<out.minDate)out.minDate=d;if(!out.maxDate||d>out.maxDate)out.maxDate=d;
+  }
+  return out;
+}
+
+/* ---------- 名寄せ ---------- */
+const BRANCH_TOKEN=/(支店|営業所|出張所|センター|センタ|倉庫|事業所|本社|本店|工場|DC|TC|LC|店|部|課)$/;
+const BRANCH_TAIL=/(支店|営業所|出張所|センター|センタ|倉庫|事業所|本社|本店|工場|DC|TC|LC|店)$/;
+function basicKey(raw){
+  let t=nk(raw).replace(/^.+?(株式会社|\(株\)|有限会社|\(有\))内\s*/,'').replace(LEGAL_G,' ').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  let tok=t.split(' ').filter(Boolean);
+  if(tok.length>1){const i=tok.findIndex((x,j)=>j>0&&BRANCH_TOKEN.test(x));if(i>0)tok=tok.slice(0,i);}
+  return tok.join(' ')||nk(raw);
+}
+function computeAutoKeys(raws){
+  const bk=new Map(raws.map(r=>[r,basicKey(r)]));
+  const keys=[...new Set(bk.values())].sort((a,b)=>a.length-b.length);
+  const cmp=s=>s.replace(/\s/g,'');
+  const merged=new Map();
+  keys.forEach(k=>{
+    let target=k;const ck=cmp(k);
+    if(BRANCH_TAIL.test(ck)||/[^\s]+\s/.test(k)){
+      const base=keys.find(b=>cmp(b).length>=2&&cmp(b).length<ck.length&&ck.startsWith(cmp(b)));
+      if(base)target=merged.get(base)||base;
+    }
+    merged.set(k,target);
+  });
+  autoKey=new Map(raws.map(r=>[r,merged.get(bk.get(r))]));
+}
+const finalDest=raw=>{const a=S.alias[raw];return a&&a.trim()?a.trim():(autoKey.get(raw)||raw);};
+
+/* ---------- レコード構築 ---------- */
+function rebuild(){
+  const cand=files.filter(f=>!f.err&&!f.old).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  let mx='';cand.forEach(f=>{if(f.maxDate>mx)mx=f.maxDate;});
+  cutoff='';if(mx){const d=toD(mx);d.setDate(d.getDate()-RETAIN_DAYS+1);cutoff=fmt(d);}
+  records=[];stats={dup:0,old:0};
+  const slipOwner=new Map();
+  cand.forEach(f=>{
+    f.rows.forEach(r=>{
+      const[d,shop,slip,raw,c,n,q]=r;
+      const so=slipOwner.get(slip);
+      if(so!==undefined&&so!==f.id){stats.dup++;return;}
+      slipOwner.set(slip,f.id);
+      if(cutoff&&d<cutoff){stats.old++;return;}
+      records.push({d,shop,slip,r:raw,c,n,q});
+    });
+  });
+  derive();
+}
+function derive(){
+  const b2bRaws=new Set();
+  records.forEach(x=>{
+    const sc=shopCfg(x.shop);
+    x.owner=sc.owner&&sc.owner.trim()?sc.owner.trim():UNASSIGNED;
+    x.type=sc.type==='mixed'?((S.mixed[x.shop]||{})[x.r]?'b2b':'ec'):(sc.type==='b2b'?'b2b':'ec');
+    if(x.type==='b2b')b2bRaws.add(x.r);
+  });
+  computeAutoKeys([...b2bRaws]);
+  prodName=new Map();
+  records.forEach(x=>{
+    x.dest=x.type==='b2b'?finalDest(x.r):`個人（${x.shop}）`;
+    x.prod=x.owner+'\u0001'+(x.c||x.n||'（商品不明）');
+    if(x.n)prodName.set(x.prod,x.n);
+  });
+  refreshOwners();refreshFilters();updateStatus();renderAll();
+}
+const pLabel=k=>prodName.get(k)||k.split('\u0001')[1];
+const pFull=k=>{const[o,c]=k.split('\u0001');const n=prodName.get(k);return `${n||c}（${c}・${o}）`;};
+const shipId=r=>r.slip||(r.d+'|'+r.r);
+
+function scoped(recs){return recs.filter(r=>(F.scope==='all'||r.type===F.scope)&&!(r.type==='b2b'&&S.exclude[r.dest]));}
+function inRange(r){return(!F.from||r.d>=F.from)&&(!F.to||r.d<=F.to);}
+function base(){return scoped(records).filter(r=>!F.owner||r.owner===F.owner);}
+function filtered(){return base().filter(r=>inRange(r)&&(!F.dest||r.dest===F.dest)&&(!F.prod||r.prod===F.prod));}
+function agg(recs,keyFn){
+  const m=new Map();
+  recs.forEach(r=>{const k=keyFn(r);let o=m.get(k);if(!o){o={key:k,qty:0,s:new Set()};m.set(k,o);}o.qty+=r.q;o.s.add(shipId(r));});
+  return [...m.values()].map(o=>({key:o.key,qty:o.qty,ships:o.s.size})).sort((a,b)=>b.qty-a.qty);
+}
+const sum=(a,f=x=>x.qty)=>a.reduce((s,x)=>s+f(x),0);
+const sumQ=recs=>recs.reduce((s,r)=>s+r.q,0);
+const ships=recs=>new Set(recs.map(shipId)).size;
+
+/* ---------- 期間 ---------- */
+const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const toD=s=>new Date(s+'T00:00:00');
+function periodKey(d,g){if(g==='day')return d;if(g==='month')return d.slice(0,7);const dt=toD(d);dt.setDate(dt.getDate()-((dt.getDay()+6)%7));return fmt(dt);}
+function pLab(k,g){if(g==='month'){const[y,m]=k.split('-');return y+'年'+(+m)+'月';}const d=toD(k);const s=(d.getMonth()+1)+'/'+d.getDate();return g==='week'?s+'〜':s+'('+WD[d.getDay()]+')';}
+function dateRange(recs){let mn=null,mx=null;recs.forEach(r=>{if(!mn||r.d<mn)mn=r.d;if(!mx||r.d>mx)mx=r.d;});return[mn,mx];}
+function periods(recs,g){const[mn,mx]=dateRange(recs);if(!mn)return[];const out=[],seen=new Set();const d=toD(mn),e=toD(mx);while(d<=e){const k=periodKey(fmt(d),g);if(!seen.has(k)){seen.add(k);out.push(k);}d.setDate(d.getDate()+1);}return out;}
+function series(recs,g,keyFn){const ps=periods(recs,g),ix=new Map(ps.map((p,i)=>[p,i])),m=new Map();recs.forEach(r=>{const k=keyFn?keyFn(r):'_';let a=m.get(k);if(!a){a=new Array(ps.length).fill(0);m.set(k,a);}a[ix.get(periodKey(r.d,g))]+=r.q;});return{ps,m};}
+
+/* ---------- Chart.js ---------- */
+const hasChart=typeof Chart!=='undefined';
+if(hasChart){
+  Chart.defaults.font.family='"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif';
+  Chart.defaults.color='#475569';
+  Chart.defaults.plugins.tooltip.padding=10;
+  Chart.register({id:'centerText',afterDraw(ch,a,o){if(!o||!o.top)return;const{ctx,chartArea:c}=ch;const x=(c.left+c.right)/2,y=(c.top+c.bottom)/2;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#0f172a';ctx.font='800 22px sans-serif';ctx.fillText(o.top,x,y-6);ctx.font='12px sans-serif';ctx.fillStyle='#64748b';ctx.fillText(o.bottom,x,y+15);ctx.restore();}});
+}
+function mk(id,cfg){if(!hasChart)return;if(charts[id]){charts[id].destroy();delete charts[id];}const c=document.getElementById(id);if(!c)return;cfg.options=Object.assign({responsive:true,maintainAspectRatio:false,animation:{duration:350}},cfg.options||{});charts[id]=new Chart(c,cfg);}
+const narrow=()=>window.innerWidth<760;
+const xTicks=()=>({maxRotation:0,autoSkip:true,maxTicksLimit:narrow()?6:16});
+
+function donut(id,list,labelFn,topN=7,unit='個'){
+  const tot=sum(list);const top=list.slice(0,topN);const rest=sum(list.slice(topN));
+  const labels=top.map(x=>labelFn(x.key)),data=top.map(x=>x.qty),colors=COLORS.slice(0,top.length);
+  if(rest>0){labels.push(`その他（${list.length-topN}件）`);data.push(rest);colors.push(OTHER);}
+  mk(id,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:2,hoverOffset:8}]},
+    options:{cutout:'60%',layout:{padding:6},plugins:{
+      legend:{position:narrow()?'bottom':'right',labels:{boxWidth:12,boxHeight:12,padding:10,generateLabels(ch){const ds=ch.data.datasets[0];return ch.data.labels.map((l,i)=>({text:`${short(l,15)}  ${pf(ds.data[i]/tot)}`,fillStyle:ds.backgroundColor[i],strokeStyle:'#fff',lineWidth:0,hidden:!ch.getDataVisibility(i),index:i}));}},
+        onClick(e,item,leg){leg.chart.toggleDataVisibility(item.index);leg.chart.update();}},
+      tooltip:{callbacks:{label:c=>` ${c.label}: ${nf(c.raw)}${unit}（${pf(c.raw/tot)}）`}},
+      centerText:{top:nf(tot),bottom:unit+'（合計）'}}}});
+}
+function trend(id,recs,keyFn,list,labelFn,mode,topN){
+  const g=F.gran;const{ps,m}=series(recs,g,keyFn);
+  const top=list.slice(0,topN).map(x=>x.key);const topSet=new Set(top);
+  const others=new Array(ps.length).fill(0);m.forEach((a,k)=>{if(!topSet.has(k))a.forEach((v,i)=>others[i]+=v);});
+  let ds=top.map((k,i)=>({label:short(labelFn(k),18),data:(m.get(k)||[]).slice(),color:COLORS[i%COLORS.length]}));
+  if(others.some(v=>v))ds.push({label:'その他',data:others,color:'#94a3b8'});
+  const share=mode==='share';
+  if(share){const tot=ps.map((_,i)=>ds.reduce((s,d)=>s+d.data[i],0));ds.forEach(d=>d.data=d.data.map((v,i)=>tot[i]?v/tot[i]*100:0));}
+  mk(id,{type:'line',data:{labels:ps.map(p=>pLab(p,g)),datasets:ds.map((d,i)=>({label:d.label,data:d.data,borderColor:d.color,backgroundColor:d.color+(share?'bb':'1a'),fill:share?(i===0?'origin':'-1'):false,tension:.3,pointRadius:ps.length>45?0:3,pointHoverRadius:5,borderWidth:share?1:2.5}))},
+    options:{interaction:{mode:'index',intersect:false},scales:{y:{stacked:share,beginAtZero:true,max:share?100:undefined,ticks:{callback:v=>share?v+'%':nf(v)},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:xTicks()}},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${share?c.raw.toFixed(1)+'%':nf(c.raw)+'個'}`}}}}});
+}
+function rankTable(el,list,labelFn,titleFn,extra){
+  const tot=sum(list),mx=list.length?list[0].qty:1;
+  el.innerHTML=`<table class="rank"><thead><tr><th>順位</th><th>名前</th><th class="num">個数</th><th>割合</th><th class="num">件数</th><th class="num">1件あたり</th>${extra?extra.head:''}</tr></thead><tbody>${
+    list.map((x,i)=>`<tr><td>${i+1}</td><td class="name" title="${esc(titleFn(x.key))}"><span class="dot" style="background:${i<7?COLORS[i]:OTHER}"></span>${esc(labelFn(x.key))}</td><td class="num">${nf(x.qty)}</td><td><div class="barcell"><div class="bar"><i style="width:${(x.qty/mx*100).toFixed(1)}%"></i></div><span class="pct">${pf(x.qty/tot)}</span></div></td><td class="num">${nf(x.ships)}</td><td class="num">${(x.qty/x.ships).toFixed(1)}</td>${extra?extra.cell(x):''}</tr>`).join('')
+  }</tbody></table>`;
+}
+function noData(el){el.innerHTML='<p class="hint" style="padding:20px;text-align:center">この条件に当てはまるデータがありません。</p>';}
+const insHtml=a=>a.map(([e,t])=>`<div class="ins"><div class="e">${e}</div><div class="t">${t}</div></div>`).join('');
+
+/* ---------- 描画 ---------- */
+function renderAll(){
+  const has=records.length>0,show=has||files.length>0;
+  $('#emptyView').style.display=show?'none':'';
+  $('#dash').style.display=show?'':'none';
+  if(!has){Object.keys(charts).forEach(k=>{charts[k].destroy();delete charts[k];});if(show){F.tab='settings';syncTabs();rSettings();}return;}
+  renderTab();
+}
+function renderTab(){({overview:rOverview,owners:rOwners,dest:()=>rDim('dest'),prod:()=>rDim('prod'),wave:rWave,cross:rCross,abc:rAbc,settings:rSettings})[F.tab]?.();}
+
+function rOverview(){
+  const recs=filtered();const tot=sumQ(recs),sh=ships(recs);
+  const dests=agg(recs,r=>r.dest),prods=agg(recs,r=>r.prod);
+  const b2b=recs.filter(r=>r.type==='b2b');const b2bQ=sumQ(b2b);
+  const nB2bDest=new Set(b2b.map(r=>r.dest)).size;
+  const days=new Set(recs.map(r=>r.d)).size;const[mn,mx]=dateRange(recs);
+  const k=(l,v,u,s,c)=>`<div class="kpi" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}<small>${u}</small></div><div class="s">${s}</div></div>`;
+  $('#kpis').innerHTML=[
+    k('出荷個数（合計）',nf(tot),'個',mn?`${mn.replace(/-/g,'/')} 〜 ${mx.replace(/-/g,'/')}`:'',COLORS[0]),
+    k('出荷件数（伝票）',nf(sh),'件',sh?`1件あたり ${(tot/sh).toFixed(1)}個`:'',COLORS[1]),
+    k('卸の割合',tot?pf(b2bQ/tot).replace('%',''):'0','%',`卸 ${nf(b2bQ)}個／個人 ${nf(tot-b2bQ)}個`,COLORS[2]),
+    k('卸先の数',nf(nB2bDest),'社','期間中に出荷があった卸先',COLORS[4]),
+    k('商品の数',nf(prods.length),'SKU','期間中に出荷があった商品',COLORS[6]),
+    k('1日あたり平均',days?nf(tot/days):'0','個',`出荷があった日 ${days}日`,COLORS[3])
+  ].join('');
+  const ins=[];
+  const bd=agg(b2b,r=>r.dest);
+  if(bd[0])ins.push(['🥇',`一番多い卸先は <b>${esc(short(bd[0].key,20))}</b>。卸全体の <b>${pf(bd[0].qty/b2bQ)}</b> を占めています。`]);
+  if(prods[0])ins.push(['📦',`一番出ている商品は <b>${esc(short(pLabel(prods[0].key),20))}</b>（${nf(prods[0].qty)}個・${pf(prods[0].qty/tot)}）。`]);
+  if(!F.owner){const ow=agg(recs,r=>r.owner);if(ow[0])ins.push(['⚖️',`出荷が一番多い荷主は <b>${esc(ow[0].key)}</b>（全体の${pf(ow[0].qty/tot)}）。`]);}
+  if(bd.length>=3){const s3=sum(bd.slice(0,3));ins.push(['🏢',`卸の上位3社で卸全体の <b>${pf(s3/b2bQ)}</b>。${s3/b2bQ>=0.7?'特定の卸先への集中度が高めです。':'卸先が分散しています。'}`]);}
+  const wd=weekdayStats(recs);if(wd.best!=null)ins.push(['📅',`出荷が一番多い曜日は <b>${WD[wd.best]}曜日</b>（平均${nf(wd.avg[wd.best])}個／日）。`]);
+  $('#insights').innerHTML=insHtml(ins.slice(0,4));
+  donut('ovDest',dests,x=>x);donut('ovProd',prods,pLabel);
+  const g=F.gran;const ps=periods(recs,g);const ix=new Map(ps.map((p,i)=>[p,i]));
+  const q=new Array(ps.length).fill(0),ss=ps.map(()=>new Set());
+  recs.forEach(r=>{const i=ix.get(periodKey(r.d,g));q[i]+=r.q;ss[i].add(shipId(r));});
+  const act=q.filter(v=>v>0).length;const avg=act?tot/act:0;
+  mk('ovTrend',{data:{labels:ps.map(p=>pLab(p,g)),datasets:[
+      {type:'bar',label:'出荷個数',data:q,backgroundColor:'#818cf8',borderRadius:5,yAxisID:'y',order:2},
+      {type:'line',label:'出荷件数',data:ss.map(s=>s.size),borderColor:'#f97316',backgroundColor:'#f97316',tension:.3,pointRadius:ps.length>45?0:3,yAxisID:'y1',order:1},
+      {type:'line',label:'平均個数',data:ps.map(()=>avg),borderColor:'#1e1b4b',borderDash:[6,5],borderWidth:1.5,pointRadius:0,yAxisID:'y',order:0}]},
+    options:{interaction:{mode:'index',intersect:false},scales:{y:{beginAtZero:true,title:{display:true,text:'個数'},ticks:{callback:v=>nf(v)},grid:{color:'#f1f5f9'}},y1:{beginAtZero:true,position:'right',title:{display:true,text:'件数'},grid:{display:false}},x:{grid:{display:false},ticks:xTicks()}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${nf(c.raw)}${c.dataset.yAxisID==='y1'?'件':'個'}`}}}}});
+}
+
+function rOwners(){
+  const all=scoped(records).filter(inRange);
+  const list=agg(all,r=>r.owner);
+  donut('oDonut',list,x=>x);
+  const b2bBy=new Map();all.forEach(r=>{if(r.type==='b2b')b2bBy.set(r.owner,(b2bBy.get(r.owner)||0)+r.q);});
+  const skuBy=new Map(),dBy=new Map();all.forEach(r=>{(skuBy.get(r.owner)||skuBy.set(r.owner,new Set()).get(r.owner)).add(r.prod);if(r.type==='b2b')(dBy.get(r.owner)||dBy.set(r.owner,new Set()).get(r.owner)).add(r.dest);});
+  const el=$('#oRank');
+  if(list.length)rankTable(el,list,x=>x,x=>x,{head:'<th class="num">卸比率</th><th class="num">卸先数</th><th class="num">SKU数</th>',cell:x=>`<td class="num">${pf((b2bBy.get(x.key)||0)/x.qty)}</td><td class="num">${nf((dBy.get(x.key)||new Set()).size)}</td><td class="num">${nf((skuBy.get(x.key)||new Set()).size)}</td>`});else noData(el);
+  trend('oTrend',all,r=>r.owner,list,x=>x,F.mode.owner,F.top.owner);
+  const top=list.slice(0,12);
+  mk('oMix',{type:'bar',data:{labels:top.map(x=>short(x.key,12)),datasets:[
+      {label:'卸',data:top.map(x=>b2bBy.get(x.key)||0),backgroundColor:'#4f46e5',borderRadius:4},
+      {label:'個人',data:top.map(x=>x.qty-(b2bBy.get(x.key)||0)),backgroundColor:'#f9a8d4',borderRadius:4}]},
+    options:{indexAxis:'y',interaction:{mode:'index',intersect:false},scales:{x:{stacked:true,ticks:{callback:v=>nf(v)},grid:{color:'#f1f5f9'}},y:{stacked:true,grid:{display:false}}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}},tooltip:{callbacks:{label:c=>{const t=top[c.dataIndex].qty;return ` ${c.dataset.label}: ${nf(c.raw)}個（${pf(c.raw/t)}）`;}}}}}});
+  const shopRecs=F.owner?all.filter(r=>r.owner===F.owner):all;
+  $('#oShopHint').textContent=F.owner?`「${F.owner}」の受注店舗ごとの出荷個数の割合です。`:'全荷主の受注店舗ごとの出荷個数の割合です。右上で荷主を選ぶと、その荷主の店舗だけを表示します。';
+  donut('oShop',agg(shopRecs,r=>r.shop),x=>x);
+}
+
+function rDim(dim){
+  const recs=filtered();const isD=dim==='dest';
+  const kf=isD?r=>r.dest:r=>r.prod,lf=isD?x=>x:pLabel,tf=isD?x=>x:pFull;
+  const list=agg(recs,kf);
+  donut(isD?'dDonut':'pDonut',list,lf);
+  const el=$(isD?'#dRank':'#pRank');if(list.length)rankTable(el,list,lf,tf);else noData(el);
+  trend(isD?'dTrend':'pTrend',recs,kf,list,lf,F.mode[dim],F.top[dim]);
+}
+
+function weekdayStats(recs){
+  const byDate=agg(recs,r=>r.d);const q=Array(7).fill(0),s=Array(7).fill(0),n=Array(7).fill(0);
+  byDate.forEach(x=>{const w=toD(x.key).getDay();q[w]+=x.qty;s[w]+=x.ships;n[w]++;});
+  const avg=q.map((v,i)=>n[i]?v/n[i]:0),avgS=s.map((v,i)=>n[i]?v/n[i]:0);
+  let best=null,low=null;avg.forEach((v,i)=>{if(!n[i])return;if(best==null||v>avg[best])best=i;if(low==null||v<avg[low])low=i;});
+  return{avg,avgS,n,best,low,byDate};
+}
+function rWave(){
+  const recs=filtered();const w=weekdayStats(recs);const order=[1,2,3,4,5,6,0];
+  const tot=sumQ(recs),days=w.byDate.length,all=days?tot/days:0;const ins=[];
+  if(w.best!=null){
+    ins.push(['🔥',`一番忙しいのは <b>${WD[w.best]}曜日</b>。平均 <b>${nf(w.avg[w.best])}個</b>／日で、全体平均の <b>${(w.avg[w.best]/all).toFixed(2)}倍</b>です。`]);
+    ins.push(['🌙',`一番少ないのは <b>${WD[w.low]}曜日</b>（平均${nf(w.avg[w.low])}個／日・全体平均の${(w.avg[w.low]/all).toFixed(2)}倍）。`]);
+    const top=[...w.byDate].sort((a,b)=>b.qty-a.qty)[0];if(top)ins.push(['📌',`ピークは <b>${pLab(top.key,'day')}</b> の <b>${nf(top.qty)}個</b>（${nf(top.ships)}件）。`]);
+  }
+  $('#wInsights').innerHTML=insHtml(ins);
+  mk('wWeek',{data:{labels:order.map(i=>WD[i]+'曜'),datasets:[
+      {type:'bar',label:'平均個数／日',data:order.map(i=>w.n[i]?Math.round(w.avg[i]):null),backgroundColor:order.map(i=>i===w.best?'#f97316':'#a5b4fc'),borderRadius:8,yAxisID:'y',order:2},
+      {type:'line',label:'平均件数／日',data:order.map(i=>w.n[i]?+w.avgS[i].toFixed(1):null),borderColor:'#1e1b4b',backgroundColor:'#1e1b4b',tension:.3,yAxisID:'y1',order:1}]},
+    options:{interaction:{mode:'index',intersect:false},scales:{y:{beginAtZero:true,title:{display:true,text:'個数'},grid:{color:'#f1f5f9'}},y1:{beginAtZero:true,position:'right',title:{display:true,text:'件数'},grid:{display:false}},x:{grid:{display:false}}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}},tooltip:{callbacks:{afterBody:it=>`集計日数：${w.n[order[it[0].dataIndex]]}日`}}}}});
+  const qm=new Map(w.byDate.map(x=>[x.key,x.qty]));const[mn,mx]=dateRange(recs);const cal=$('#wCal');
+  if(!mn)noData(cal);else{
+    const maxQ=Math.max(...w.byDate.map(x=>x.qty));const st=toD(mn);st.setDate(st.getDate()-((st.getDay()+6)%7));const en=toD(mx);
+    let h='<div class="cal"><div></div>'+order.map(i=>`<div class="h">${WD[i]}</div>`).join('');const d=new Date(st);let wk=0;
+    while(d<=en&&wk<30){h+=`<div class="wk">${d.getMonth()+1}/${d.getDate()}週</div>`;
+      for(let i=0;i<7;i++){const k=fmt(d);const v=qm.get(k)||0;
+        if(k<mn||k>mx)h+='<div class="c out"></div>';
+        else{const a=v?0.12+0.88*(v/maxQ):0;h+=`<div class="c" title="${k} ${nf(v)}個" style="${v?`background:rgba(79,70,229,${a.toFixed(2)});color:${a>0.55?'#fff':'#0f172a'};border-color:transparent`:''}"><div class="d" style="${a>0.55?'color:#e0e7ff':''}">${d.getDate()}日</div><div class="q">${v?nf(v):'-'}</div></div>`;}
+        d.setDate(d.getDate()+1);}wk++;}
+    h+='</div><div class="legend">少ない <i style="background:rgba(79,70,229,.15)"></i><i style="background:rgba(79,70,229,.4)"></i><i style="background:rgba(79,70,229,.7)"></i><i style="background:rgba(79,70,229,1)"></i> 多い'+(wk>=30?'（直近の範囲を選ぶと全日表示されます）':'')+'</div>';
+    cal.innerHTML=h;
+  }
+  const{ps,m}=series(recs,'day');const arr=m.get('_')||[];
+  const top3=new Set(arr.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]).slice(0,3).filter(x=>x[0]>0).map(x=>x[1]));
+  const avg=days?tot/days:0;
+  mk('wDaily',{type:'line',data:{labels:ps.map(p=>pLab(p,'day')),datasets:[
+      {label:'出荷個数',data:arr,borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,.12)',fill:true,tension:.25,pointRadius:arr.map((_,i)=>top3.has(i)?6:(ps.length>45?0:2.5)),pointBackgroundColor:arr.map((_,i)=>top3.has(i)?'#e11d48':'#4f46e5')},
+      {label:'平均（出荷日）',data:ps.map(()=>avg),borderColor:'#f97316',borderDash:[6,5],borderWidth:1.5,pointRadius:0,fill:false}]},
+    options:{interaction:{mode:'index',intersect:false},scales:{y:{beginAtZero:true,ticks:{callback:v=>nf(v)},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:xTicks()}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${nf(c.raw)}個`}}}}});
+}
+
+function rCross(){
+  const recs=filtered();const el=$('#cTable');
+  const rowsAll=agg(recs,r=>r.dest),colsAll=agg(recs,r=>r.prod);
+  const rows=rowsAll.slice(0,F.cRows),cols=colsAll.slice(0,F.cCols);
+  if(!rows.length){noData(el);return;}
+  const cell=new Map();recs.forEach(r=>{const k=r.dest+'\u0002'+r.prod;cell.set(k,(cell.get(k)||0)+r.q);});
+  const rTot=new Map(rowsAll.map(x=>[x.key,x.qty])),cTot=new Map(colsAll.map(x=>[x.key,x.qty]));const T=sumQ(recs);
+  const raw=(d,p)=>cell.get(d+'\u0002'+p)||0;
+  const val=(d,p)=>{const v=raw(d,p);return F.cMode==='row'?v/rTot.get(d):F.cMode==='col'?v/cTot.get(p):v;};
+  let mx=0;rows.forEach(r=>cols.forEach(c=>{mx=Math.max(mx,val(r.key,c.key));}));
+  const show=v=>F.cMode==='qty'?(v?nf(v):''):(v?pf(v):'');
+  let h=`<table class="cross"><thead><tr><th>卸先 ＼ 商品</th>${cols.map(c=>`<th title="${esc(pFull(c.key))}">${esc(short(pLabel(c.key),22))}</th>`).join('')}<th class="tot">合計</th></tr></thead><tbody>`;
+  rows.forEach(r=>{h+=`<tr><th title="${esc(r.key)}">${esc(short(r.key,20))}</th>`;
+    cols.forEach(c=>{const v=val(r.key,c.key);const a=mx?v/mx:0;h+=`<td style="${v?`background:rgba(79,70,229,${(0.08+0.85*a).toFixed(2)});color:${a>0.55?'#fff':'#0f172a'}`:''}" title="${esc(r.key)} × ${esc(pFull(c.key))}：${nf(raw(r.key,c.key))}個">${show(v)}</td>`;});
+    h+=`<td class="tot">${F.cMode==='qty'?nf(r.qty):F.cMode==='row'?'100%':pf(r.qty/T)}</td></tr>`;});
+  h+=`<tr><th class="tot">合計</th>${cols.map(c=>`<td class="tot">${F.cMode==='qty'?nf(c.qty):F.cMode==='col'?'100%':pf(c.qty/T)}</td>`).join('')}<td class="tot">${F.cMode==='qty'?nf(T):'100%'}</td></tr></tbody></table>`;
+  el.innerHTML=h;
+}
+
+function rAbc(){
+  const recs=filtered();const isP=F.abc==='prod';const unit=isP?'品':'件';
+  const lf=isP?pLabel:x=>x,tf=isP?pFull:x=>x;
+  const list=agg(recs,isP?r=>r.prod:r=>r.dest);const tot=sum(list);let cum=0;
+  list.forEach(x=>{const b=cum/tot;cum+=x.qty;x.cum=cum/tot;x.rank=b<0.7?'A':b<0.9?'B':'C';});
+  const R={A:[],B:[],C:[]};list.forEach(x=>R[x.rank].push(x));
+  const bg={A:'linear-gradient(135deg,#3730a3,#6366f1)',B:'linear-gradient(135deg,#d97706,#f59e0b)',C:'linear-gradient(135deg,#64748b,#94a3b8)'};
+  const desc=isP?{A:'最重要。欠品させない・取りやすい場所に',B:'中位。定期的に動きを確認',C:'少量。保管場所や在庫量を見直し候補'}:{A:'最重要の取引先',B:'中位の取引先',C:'少量の取引先'};
+  $('#abcCards').innerHTML=['A','B','C'].map(k=>`<div class="abc" style="background:${bg[k]}"><div>ランク${k}</div><div class="big">${R[k].length}${unit}<small style="font-size:13px;font-weight:600"> （${pf(R[k].length/(list.length||1))}）</small></div><div>出荷個数の ${pf(sum(R[k])/(tot||1))}</div><div style="font-size:11px;opacity:.9;margin-top:4px">${desc[k]}</div></div>`).join('');
+  const t20=Math.max(1,Math.ceil(list.length*0.2));
+  $('#abcIns').innerHTML=list.length?insHtml([['💡',`上位2割の <b>${t20}${unit}</b> で、出荷個数の <b>${pf(sum(list.slice(0,t20))/tot)}</b> を占めています。`]]):'';
+  const show=list.slice(0,80);const col={A:'#4f46e5',B:'#f59e0b',C:'#94a3b8'};
+  mk('abcChart',{data:{labels:show.map(x=>short(lf(x.key),12)),datasets:[
+      {type:'bar',label:'出荷個数',data:show.map(x=>x.qty),backgroundColor:show.map(x=>col[x.rank]),borderRadius:4,yAxisID:'y',order:2},
+      {type:'line',label:'累計の割合',data:show.map(x=>+(x.cum*100).toFixed(1)),borderColor:'#e11d48',backgroundColor:'#e11d48',pointRadius:show.length>30?0:3,tension:.2,yAxisID:'y1',order:1}]},
+    options:{interaction:{mode:'index',intersect:false},scales:{y:{beginAtZero:true,ticks:{callback:v=>nf(v)},grid:{color:'#f1f5f9'}},y1:{min:0,max:100,position:'right',ticks:{callback:v=>v+'%'},grid:{display:false}},x:{grid:{display:false},ticks:{maxRotation:60,autoSkip:true}}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true}},tooltip:{callbacks:{title:it=>tf(show[it[0].dataIndex].key),label:c=>c.dataset.yAxisID==='y1'?` 累計: ${c.raw}%`:` 出荷個数: ${nf(c.raw)}個（ランク${show[c.dataIndex].rank}）`}}}}});
+  const el=$('#abcTable');if(!list.length){noData(el);return;}
+  el.innerHTML=`<table class="rank"><thead><tr><th>順位</th><th>ランク</th><th>名前</th><th class="num">個数</th><th class="num">割合</th><th class="num">累計</th></tr></thead><tbody>${
+    list.map((x,i)=>`<tr><td>${i+1}</td><td><span class="badge b${x.rank}">${x.rank}</span></td><td class="name" title="${esc(tf(x.key))}">${esc(lf(x.key))}</td><td class="num">${nf(x.qty)}</td><td class="num">${pf(x.qty/tot)}</td><td class="num">${pf(x.cum)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+/* ---------- 設定タブ ---------- */
+const TYPE_LABEL={b2b:'卸',ec:'個人向け',mixed:'混在'};
+function rSettings(){renderShops();renderMixed();renderMerge();
+  $('#fileList').innerHTML=files.slice().sort((a,b)=>b.name.localeCompare(a.name,'ja')).map(f=>`<li>${esc(f.name)}　${f.err?`<b style="color:#c2410c">${esc(f.err)}</b>`:f.old?'（保持期間外）':`${f.minDate===f.maxDate?f.minDate:f.minDate+'〜'+f.maxDate}・${nf(f.rows.length)}行`}</li>`).join('')||'<li>なし</li>';}
+function renderShops(){
+  const by=new Map();records.forEach(r=>{let o=by.get(r.shop);if(!o){o={q:0,s:new Set()};by.set(r.shop,o);}o.q+=r.q;o.s.add(r.slip);});
+  const owners=[...new Set(Object.values(S.shops).map(s=>s.owner).filter(Boolean))];
+  $('#ownerList').innerHTML=owners.map(o=>`<option value="${esc(o)}">`).join('');
+  const list=[...by.entries()].sort((a,b)=>{const ua=!shopCfg(a[0]).owner,ub=!shopCfg(b[0]).owner;if(ua!==ub)return ua?-1:1;const oa=shopCfg(a[0]).owner,ob=shopCfg(b[0]).owner;return oa===ob?b[1].q-a[1].q:oa.localeCompare(ob,'ja');});
+  $('#shopTable').innerHTML=`<table class="mg"><thead><tr><th>受注店舗名（CSV）</th><th style="width:240px">荷主</th><th style="width:150px">区分</th><th class="num">個数</th><th class="num">件数</th></tr></thead><tbody>${
+    list.map(([k,o])=>{const c=shopCfg(k);return `<tr class="${c.owner?'':'unset'}"><td>${esc(k)}${c.owner?'':' <span class="man">未割当</span>'}</td><td><input type="text" list="ownerList" data-shop-owner="${esc(k)}" value="${esc(c.owner)}" placeholder="荷主名を入力"></td><td><select data-shop-type="${esc(k)}">${Object.entries(TYPE_LABEL).map(([v,l])=>`<option value="${v}"${c.type===v?' selected':''}>${l}</option>`).join('')}</select> <span class="tag t-${c.type}">${TYPE_LABEL[c.type]}</span></td><td class="num">${nf(o.q)}</td><td class="num">${nf(o.s.size)}</td></tr>`;}).join('')}</tbody></table>`;
+}
+function renderMixed(){
+  const mixedShops=Object.keys(S.shops).filter(k=>S.shops[k].type==='mixed');
+  const card=$('#mixedCard');const el=$('#mixedTable');
+  const present=mixedShops.filter(k=>records.some(r=>r.shop===k));
+  card.style.display=present.length?'':'none';if(!present.length)return;
+  let h='<table class="mg"><thead><tr><th style="width:70px">卸</th><th>宛先（CSVから取り出した名前）</th><th class="num">個数</th><th class="num">件数</th></tr></thead><tbody>';
+  present.forEach(shop=>{
+    const by=new Map();records.filter(r=>r.shop===shop).forEach(r=>{let o=by.get(r.r);if(!o){o={q:0,s:new Set()};by.set(r.r,o);}o.q+=r.q;o.s.add(r.slip);});
+    const sel=S.mixed[shop]||{};
+    h+=`<tr class="grp"><td></td><td>${esc(shop)}（${esc(shopCfg(shop).owner||UNASSIGNED)}）</td><td></td><td></td></tr>`;
+    [...by.entries()].sort((a,b)=>(+!!sel[b[0]])-(+!!sel[a[0]])||b[1].q-a[1].q).slice(0,200).forEach(([raw,o])=>{
+      h+=`<tr><td><input type="checkbox" data-mix-shop="${esc(shop)}" data-mix-raw="${esc(raw)}"${sel[raw]?' checked':''}></td><td class="raw">${esc(raw)}</td><td class="num">${nf(o.q)}</td><td class="num">${nf(o.s.size)}</td></tr>`;});
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+function renderMerge(){
+  const q=nk($('#mgSearch').value).toLowerCase();
+  const byRaw=new Map();records.forEach(r=>{if(r.type!=='b2b')return;let o=byRaw.get(r.r);if(!o){o={raw:r.r,qty:0,dest:r.dest,owners:new Set()};byRaw.set(r.r,o);}o.qty+=r.q;o.owners.add(r.owner);});
+  const groups=new Map();byRaw.forEach(o=>{let g=groups.get(o.dest);if(!g){g={name:o.dest,qty:0,raws:[],owners:new Set()};groups.set(o.dest,g);}g.qty+=o.qty;g.raws.push(o);o.owners.forEach(x=>g.owners.add(x));});
+  let gl=[...groups.values()].sort((a,b)=>b.qty-a.qty);
+  if(q)gl=gl.filter(g=>g.name.toLowerCase().includes(q)||g.raws.some(r=>r.raw.toLowerCase().includes(q)));
+  const total=gl.length;gl=gl.slice(0,300);
+  $('#destList').innerHTML=[...groups.keys()].map(n=>`<option value="${esc(n)}">`).join('');
+  let h=`<table class="mg"><thead><tr><th style="width:56px">除外</th><th>統合後の卸先名 ／ CSVから取り出した宛先名</th><th>荷主</th><th class="num">個数</th><th style="width:280px">統合後の名前（書き換えで変更）</th></tr></thead><tbody>`;
+  gl.forEach(g=>{const ex=!!S.exclude[g.name];
+    h+=`<tr class="grp${ex?' ex':''}"><td><input type="checkbox" data-ex="${esc(g.name)}"${ex?' checked':''} title="この卸先を分析から除外"></td><td>${esc(g.name)} <span class="hint">（${g.raws.length}件の表記）</span></td><td>${esc([...g.owners].join('、'))}</td><td class="num">${nf(g.qty)}</td><td><input type="text" data-grp="${esc(g.name)}" value="${esc(g.name)}"></td></tr>`;
+    g.raws.sort((a,b)=>b.qty-a.qty).forEach(r=>{const man=S.alias[r.raw]&&S.alias[r.raw].trim();
+      h+=`<tr><td></td><td class="raw">└ ${esc(r.raw)}${man?'<span class="man">手動</span>':''}</td><td></td><td class="num">${nf(r.qty)}</td><td><input type="text" list="destList" data-raw="${esc(r.raw)}" value="${esc(r.dest)}"></td></tr>`;});
+  });
+  h+='</tbody></table>';if(total>300)h+=`<p class="hint" style="padding:8px">${nf(total)}件中、上位300件を表示しています。絞り込みを使ってください。</p>`;
+  $('#mgTable').innerHTML=h;
+}
+function settingsChanged(){persist();setDirty(true);derive();if(F.tab==='settings')rSettings();}
+
+/* ---------- 荷主・フィルター ---------- */
+function refreshOwners(){
+  const list=agg(scoped(records),r=>r.owner);
+  if(F.owner&&!list.some(x=>x.key===F.owner))F.owner='';
+  $('#ownerSel').innerHTML='<option value="">全荷主（合計）</option>'+list.map(x=>`<option value="${esc(x.key)}"${x.key===F.owner?' selected':''}>${esc(x.key)}</option>`).join('');
+}
+function refreshFilters(){
+  const b=base();const dl=agg(b,r=>r.dest),pl=agg(b,r=>r.prod);
+  if(F.dest&&!dl.some(x=>x.key===F.dest))F.dest='';if(F.prod&&!pl.some(x=>x.key===F.prod))F.prod='';
+  $('#fDest').innerHTML='<option value="">すべての卸先</option>'+dl.map(x=>`<option value="${esc(x.key)}"${x.key===F.dest?' selected':''}>${esc(short(x.key,24))}</option>`).join('');
+  $('#fProd').innerHTML='<option value="">すべての商品</option>'+pl.map(x=>`<option value="${esc(x.key)}"${x.key===F.prod?' selected':''}>${esc(short(pLabel(x.key),24))}</option>`).join('');
+  const[mn,mx]=dateRange(records);['#fFrom','#fTo'].forEach(s=>{$(s).min=mn||'';$(s).max=mx||'';});
+}
+function updateStatus(){
+  const ok=files.filter(f=>!f.err);const[mn,mx]=dateRange(records);
+  $('#status').innerHTML=files.length?`取り込み済み <b>${ok.length}</b>ファイル／集計対象 <b>${nf(records.length)}</b>行`+(mn?`（出荷日 ${mn.replace(/-/g,'/')} 〜 ${mx.replace(/-/g,'/')}）`:'')+(stats.dup?`／重複した伝票 ${nf(stats.dup)}行を除外`:'')+(stats.old?`／半年より前 ${nf(stats.old)}行を除外`:''):'まだ取り込んでいません。';
+  const w=[];
+  const bad=files.filter(f=>f.err);if(bad.length)w.push(`読み込めないファイルがあります（${bad.map(f=>f.name).join('、')}）：${bad[0].err}`);
+  const un=[...new Set(records.filter(r=>r.owner===UNASSIGNED).map(r=>r.shop))];
+  if(un.length)w.push(`荷主が決まっていない店舗が ${un.length}件 あります（${un.slice(0,3).join('、')}${un.length>3?' など':''}）。<a data-goto="settings">⚙️ 設定タブ</a>で荷主名を入れてください。`);
+  if(!hasChart)w.push('グラフ部品（chart.umd.min.js）を読み込めませんでした。');
+  $('#warn').innerHTML=w.map(x=>`<div class="warnbox">⚠️ ${x}</div>`).join('');
+}
+
+/* ---------- 設定ファイル ---------- */
+async function importSettings(file,silent){
+  try{const o=JSON.parse(await readText(file));if(!o||o.type!=='pareto-kun-settings'||!o.settings)throw 0;
+    const s=o.settings;S={shops:s.shops||{},mixed:s.mixed||{},alias:s.alias||{},exclude:s.exclude||{}};persist();setDirty(false);
+    toast(silent?'フォルダ内の共有設定を反映しました':'設定ファイルを読み込みました');if(!silent)derive();
+  }catch(e){toast('設定ファイルの形式が正しくありません');}
+}
+async function saveSettings(){
+  const data=JSON.stringify({type:'pareto-kun-settings',version:1,savedAt:new Date().toISOString(),settings:S},null,2);
+  if(dirHandle){try{let p=await dirHandle.queryPermission({mode:'readwrite'});if(p!=='granted')p=await dirHandle.requestPermission({mode:'readwrite'});
+    if(p==='granted'){const fh=await dirHandle.getFileHandle(SETTINGS_NAME,{create:true});const w=await fh.createWritable();await w.write(data);await w.close();setDirty(false);toast('取り込んだフォルダに設定を保存しました');return;}}catch(e){}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=SETTINGS_NAME;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  setDirty(false);toast('設定ファイルをダウンロードしました。CSVと同じフォルダに置いてください');
+}
+
+/* ---------- 取り込み ---------- */
+async function ingest(list,{sync=false}={}){
+  busy(true,'読み込み中…');
+  try{
+    const csvs=list.filter(f=>/\.csv$/i.test(f.name));const setFile=list.find(f=>f.name===SETTINGS_NAME);
+    if(setFile)await importSettings(setFile,true);
+    const known=new Map(files.map(f=>[f.id,f]));const seenIds=new Set();let added=0,i=0;
+    let mx='';files.forEach(f=>{if(!f.err&&f.maxDate>mx)mx=f.maxDate;});
+    for(const f of csvs){
+      i++;const id=f.name+'|'+f.size+'|'+f.lastModified;seenIds.add(id);
+      if(known.has(id))continue;
+      busy(true,`読み込み中… ${i}/${csvs.length}`);
+      const p=parseFile(f.name,f.size,f.lastModified,await readText(f));
+      files.push(p);known.set(id,p);added++;
+      if(p.maxDate>mx)mx=p.maxDate;
+    }
+    if(sync){const rm=files.filter(f=>!seenIds.has(f.id));for(const f of rm)await fileDel(f.id).catch(()=>{});files=files.filter(f=>seenIds.has(f.id));}
+    // 保持期間外のファイルは中身を捨てて目印だけ残す
+    if(mx){const d=toD(mx);d.setDate(d.getDate()-RETAIN_DAYS+1);const co=fmt(d);files.forEach(f=>{if(!f.err&&!f.old&&f.maxDate&&f.maxDate<co){f.old=true;f.rows=[];f._dirty=true;}});}
+    for(const f of files){if(f._dirty||!f._saved){delete f._dirty;f._saved=true;await filePut(f).catch(()=>{});}}
+    await kvSet('lastImport',new Date().toISOString()).catch(()=>{});
+    rebuild();
+    toast(added?`${added}ファイルを新しく取り込みました`:'新しいCSVはありませんでした');
+  }finally{busy(false);}
+}
+async function filesFromDir(h){const out=[];for await(const[name,entry]of h.entries()){if(entry.kind!=='file')continue;if(/\.csv$/i.test(name)||name===SETTINGS_NAME)out.push(await entry.getFile());}return out;}
+async function pickFolder(){
+  if(window.showDirectoryPicker){
+    try{const h=await window.showDirectoryPicker({id:'paretokun',mode:'readwrite'});dirHandle=h;await kvSet('dir',h).catch(()=>{});$('#btnReopen').style.display='';await ingest(await filesFromDir(h),{sync:true});return;}
+    catch(e){if(e&&e.name==='AbortError')return;}
+  }
+  $('#inDir').click();
+}
+async function reopenFolder(){
+  try{const h=await kvGet('dir');if(!h){toast('前回のフォルダが記録されていません');return;}
+    let p=await h.queryPermission({mode:'readwrite'});if(p!=='granted')p=await h.requestPermission({mode:'readwrite'});
+    if(p!=='granted'){toast('フォルダへのアクセスが許可されませんでした');return;}
+    dirHandle=h;await ingest(await filesFromDir(h),{sync:true});
+  }catch(e){toast('前回のフォルダを開けませんでした。「フォルダを選んで取り込む」から選び直してください');}
+}
+
+/* ---------- イベント ---------- */
+function syncTabs(){$$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===F.tab));$$('.panel').forEach(p=>p.classList.toggle('on',p.dataset.p===F.tab));}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;F.tab=b.dataset.t;syncTabs();renderTab();});
+$('#warn').addEventListener('click',e=>{const a=e.target.closest('[data-goto]');if(!a)return;F.tab=a.dataset.goto;syncTabs();renderTab();window.scrollTo({top:$('#tabs').offsetTop-10,behavior:'smooth'});});
+function segBind(sel,attr,cb,after){$$(sel).forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset[attr],seg);(after||renderTab)();}));}
+segBind('#scope','s',v=>F.scope=v,()=>{refreshOwners();refreshFilters();renderTab();});
+segBind('#gran','g',v=>F.gran=v);
+segBind('[data-mode]','m',(v,s)=>F.mode[s.dataset.mode]=v);
+segBind('[data-top]','n',(v,s)=>F.top[s.dataset.top]=+v);
+segBind('#cMode','m',v=>F.cMode=v);segBind('#cRows','n',v=>F.cRows=+v);segBind('#cCols','n',v=>F.cCols=+v);
+segBind('#abcDim','d',v=>F.abc=v);
+$('#ownerSel').addEventListener('change',e=>{F.owner=e.target.value;F.dest='';F.prod='';refreshFilters();renderTab();});
+$('#fFrom').addEventListener('change',e=>{F.from=e.target.value;renderTab();});
+$('#fTo').addEventListener('change',e=>{F.to=e.target.value;renderTab();});
+$('#fDest').addEventListener('change',e=>{F.dest=e.target.value;renderTab();});
+$('#fProd').addEventListener('change',e=>{F.prod=e.target.value;renderTab();});
+$('#quick').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const q=b.dataset.q;const[,mx]=dateRange(records);if(!mx)return;
+  const end=toD(mx);let from='',to='';
+  if(q==='7'||q==='30'){const s=new Date(end);s.setDate(s.getDate()-(+q-1));from=fmt(s);to=mx;}
+  else if(q==='thisM'){from=mx.slice(0,8)+'01';to=mx;}
+  else if(q==='lastM'){from=fmt(new Date(end.getFullYear(),end.getMonth()-1,1));to=fmt(new Date(end.getFullYear(),end.getMonth(),0));}
+  F.from=from;F.to=to;$('#fFrom').value=from;$('#fTo').value=to;renderTab();
+});
+$('#btnFolder').addEventListener('click',pickFolder);
+$('#btnReopen').addEventListener('click',reopenFolder);
+$('#btnFiles').addEventListener('click',()=>$('#inFiles').click());
+$('#inFiles').addEventListener('change',async e=>{await ingest([...e.target.files]);e.target.value='';});
+$('#inDir').addEventListener('change',async e=>{await ingest([...e.target.files],{sync:true});e.target.value='';});
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();drop.classList.add('on');}));
+['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();if(t==='drop'||!e.relatedTarget)drop.classList.remove('on');}));
+document.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files.length)ingest([...e.dataTransfer.files]);});
+$('#btnSave').addEventListener('click',saveSettings);
+$('#btnLoadSet').addEventListener('click',()=>$('#inSet').click());
+$('#inSet').addEventListener('change',async e=>{if(e.target.files[0])await importSettings(e.target.files[0],false);e.target.value='';});
+$('#btnWipe').addEventListener('click',async()=>{if(!confirm('このPCに保存した出荷データをすべて削除しますか？（共有ドライブのCSVは消えません）'))return;await filesClear().catch(()=>{});files=[];records=[];rebuild();toast('保存データを削除しました');});
+$('#shopTable').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.shopOwner!==undefined){shopCfg(t.dataset.shopOwner).owner=t.value.trim();settingsChanged();}
+  else if(t.dataset.shopType!==undefined){shopCfg(t.dataset.shopType).type=t.value;settingsChanged();}});
+$('#mixedTable').addEventListener('change',e=>{const t=e.target;if(t.dataset.mixShop===undefined)return;const m=S.mixed[t.dataset.mixShop]||(S.mixed[t.dataset.mixShop]={});if(t.checked)m[t.dataset.mixRaw]=true;else delete m[t.dataset.mixRaw];settingsChanged();});
+$('#mgSearch').addEventListener('input',renderMerge);
+$('#mgReset').addEventListener('click',()=>{if(!confirm('手動で設定した統合をすべて解除し、自動統合に戻しますか？'))return;S.alias=Object.assign({},DEFAULT_ALIAS);settingsChanged();});
+$('#mgTable').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.ex!==undefined){if(t.checked)S.exclude[t.dataset.ex]=true;else delete S.exclude[t.dataset.ex];settingsChanged();return;}
+  if(t.dataset.raw!==undefined){const raw=t.dataset.raw,v=t.value.trim();if(!v||v===autoKey.get(raw))delete S.alias[raw];else S.alias[raw]=v;settingsChanged();return;}
+  if(t.dataset.grp!==undefined){const old=t.dataset.grp,v=t.value.trim();if(!v||v===old)return;records.filter(r=>r.type==='b2b'&&r.dest===old).forEach(r=>{S.alias[r.r]=v;});if(S.exclude[old]){delete S.exclude[old];S.exclude[v]=true;}settingsChanged();}
+});
+let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(records.length)renderTab();},300);});
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  try{files=(await filesAll())||[];files.forEach(f=>f._saved=true);}catch(e){files=[];}
+  try{if(window.showDirectoryPicker&&await kvGet('dir'))$('#btnReopen').style.display='';}catch(e){}
+  rebuild();
+})();
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
